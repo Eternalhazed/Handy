@@ -277,6 +277,15 @@ pub struct TranscriptionManager {
     /// `is_model_loaded()` consults this so the model still reports "loaded"
     /// while the worker holds it.
     active_engine_lease: Arc<AtomicU64>,
+    /// Serializes whole transcription operations (record → transcribe → output)
+    /// against each other and against transcription-backend changes.
+    ///
+    /// `transcribe()` takes the engine *out* of its mutex while it runs and puts
+    /// it back afterwards, so unloading or switching provider mid-run could
+    /// resurrect a stale local engine — or start a second upload. Callers
+    /// try-acquire this gate and hold the guard until their operation is fully
+    /// done (including the blocking native call and the output handling).
+    operation_gate: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl TranscriptionManager {
@@ -297,6 +306,7 @@ impl TranscriptionManager {
             next_stream_worker_id: Arc::new(AtomicU64::new(1)),
             active_stream_worker: Arc::new(AtomicU64::new(0)),
             active_engine_lease: Arc::new(AtomicU64::new(0)),
+            operation_gate: Arc::new(tokio::sync::Mutex::new(())),
         };
 
         // Start the idle watcher
@@ -408,6 +418,22 @@ impl TranscriptionManager {
             is_loading: self.is_loading.clone(),
             loading_condvar: self.loading_condvar.clone(),
         })
+    }
+
+    /// Try to claim the whole-operation gate without waiting.
+    ///
+    /// Returns `None` while another record/transcribe/output operation is in
+    /// flight, so callers reject the request instead of interleaving with it.
+    /// The returned guard releases the gate when dropped, on every exit path.
+    pub fn try_acquire_operation(&self) -> Option<tokio::sync::OwnedMutexGuard<()>> {
+        Arc::clone(&self.operation_gate).try_lock_owned().ok()
+    }
+
+    /// Retained when a caller must keep the gate across a blocking native call:
+    /// the guard is moved into the blocking task and released when that task
+    /// finishes, never when the async wrapper returns.
+    pub fn operation_gate(&self) -> Arc<tokio::sync::Mutex<()>> {
+        Arc::clone(&self.operation_gate)
     }
 
     pub fn unload_model(&self) -> Result<()> {
@@ -1676,7 +1702,7 @@ fn effective_language_for_model(
 /// Resolve how confidently Handy knows the language of the text produced by a
 /// transcription run. The UI language is deliberately not part of this
 /// decision.
-fn resolve_output_language_evidence(
+pub(crate) fn resolve_output_language_evidence(
     settings: &AppSettings,
     applied_language_hint: Option<&str>,
     supported_languages: &[String],
@@ -1766,7 +1792,7 @@ fn transcribe_cpp_run_plan(
     }
 }
 
-fn post_process_transcription_text(
+pub(crate) fn post_process_transcription_text(
     raw: String,
     settings: &AppSettings,
     custom_words_already_prompted: bool,

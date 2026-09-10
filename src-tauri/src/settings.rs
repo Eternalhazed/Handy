@@ -325,6 +325,17 @@ pub enum VadBackend {
     Earshot,
 }
 
+/// Which speech-to-text backend produces transcripts: a downloaded local model
+/// or OpenRouter's hosted transcription API. Persisted independently of
+/// `selected_model` so switching providers never discards either choice.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum TranscriptionProvider {
+    #[default]
+    Local,
+    OpenRouter,
+}
+
 #[derive(Clone, Serialize, Deserialize, Type)]
 #[serde(transparent)]
 pub(crate) struct SecretMap(HashMap<String, String>);
@@ -401,6 +412,15 @@ pub struct AppSettings {
     pub whats_new_last_seen_version: String,
     #[serde(default = "default_model")]
     pub selected_model: String,
+    /// Active transcription backend. `selected_model` stays the remembered
+    /// *local* model even while OpenRouter is active, so switching back restores
+    /// the previous local choice.
+    #[serde(default)]
+    pub transcription_provider: TranscriptionProvider,
+    /// Remembered OpenRouter transcription model id (e.g. `openai/whisper-1`
+    /// style provider-prefixed ids). Empty until the user picks one.
+    #[serde(default = "default_openrouter_transcription_model")]
+    pub openrouter_transcription_model: String,
     #[serde(default)]
     pub onboarding_completed: bool,
     #[serde(default = "default_always_on_microphone")]
@@ -517,6 +537,10 @@ pub struct AppSettings {
 }
 
 fn default_model() -> String {
+    "".to_string()
+}
+
+fn default_openrouter_transcription_model() -> String {
     "".to_string()
 }
 
@@ -921,6 +945,8 @@ pub fn get_default_settings() -> AppSettings {
         show_whats_new_on_update: default_show_whats_new_on_update(),
         whats_new_last_seen_version: default_whats_new_last_seen_version(),
         selected_model: "".to_string(),
+        transcription_provider: TranscriptionProvider::default(),
+        openrouter_transcription_model: default_openrouter_transcription_model(),
         onboarding_completed: false,
         always_on_microphone: false,
         selected_microphone: None,
@@ -999,6 +1025,29 @@ impl AppSettings {
         self.post_process_providers
             .iter_mut()
             .find(|provider| provider.id == provider_id)
+    }
+
+    /// Whether OpenRouter transcription is *configured*: a non-blank shared API
+    /// key and a chosen model id. This deliberately says nothing about the
+    /// network, credits, or whether the model is still offered by discovery —
+    /// callers must not present it as a connectivity check.
+    pub fn openrouter_transcription_ready(&self) -> bool {
+        !self.openrouter_transcription_model.trim().is_empty()
+            && !self
+                .post_process_api_keys
+                .get(crate::openrouter_stt::PROVIDER_ID)
+                .map(|key| key.trim().is_empty())
+                .unwrap_or(true)
+    }
+
+    /// Whether any transcription backend is usable right now: a downloaded local
+    /// model while Local is active, or a configured OpenRouter selection while
+    /// OpenRouter is active.
+    pub fn transcription_configured(&self, local_model_downloaded: bool) -> bool {
+        match self.transcription_provider {
+            TranscriptionProvider::Local => local_model_downloaded,
+            TranscriptionProvider::OpenRouter => self.openrouter_transcription_ready(),
+        }
     }
 }
 

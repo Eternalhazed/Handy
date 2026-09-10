@@ -136,7 +136,10 @@ struct ChatMessageResponse {
 }
 
 /// Build headers for API requests based on provider type
-fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<HeaderMap, String> {
+pub(crate) fn build_headers(
+    provider: &PostProcessProvider,
+    api_key: &str,
+) -> Result<HeaderMap, String> {
     let mut headers = HeaderMap::new();
 
     // Common headers
@@ -262,7 +265,7 @@ fn sanitized_url_for_log(url: &str) -> String {
         .unwrap_or_else(|_| "<invalid URL>".to_string())
 }
 
-fn report_reqwest_error(context: &str, error: &reqwest::Error) -> String {
+pub(crate) fn report_reqwest_error(context: &str, error: &reqwest::Error) -> String {
     let kinds = reqwest_error_kinds(error);
     let url = error
         .url()

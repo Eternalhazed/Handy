@@ -1,6 +1,7 @@
+use crate::managers::audio::AudioRecordingManager;
 use crate::managers::model::{ModelInfo, ModelManager};
 use crate::managers::transcription::{ModelStateEvent, TranscriptionManager};
-use crate::settings::{get_settings, write_settings, ModelUnloadTimeout};
+use crate::settings::{get_settings, write_settings, ModelUnloadTimeout, TranscriptionProvider};
 use log::error;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -96,6 +97,18 @@ pub fn switch_active_model(app: &AppHandle, model_id: &str) -> Result<(), String
     let model_manager = app.state::<Arc<ModelManager>>();
     let transcription_manager = app.state::<Arc<TranscriptionManager>>();
 
+    // A live dictation is already in flight; switching the model under it would
+    // change what the running operation was started for.
+    if app.state::<Arc<AudioRecordingManager>>().is_recording() {
+        return Err("Transcription is in progress".to_string());
+    }
+
+    // Selecting a local model always switches the backend back to local —
+    // including when OpenRouter is currently active.
+    let Some(_operation_guard) = transcription_manager.try_acquire_operation() else {
+        return Err("Transcription is in progress".to_string());
+    };
+
     // Atomically claim the loading slot — prevents concurrent model loads
     // from tray double-clicks or overlapping commands. The guard resets the
     // flag on drop (including early returns, errors, and panics).
@@ -116,11 +129,13 @@ pub fn switch_active_model(app: &AppHandle, model_id: &str) -> Result<(), String
     let unload_timeout = settings.model_unload_timeout;
     let old_model = settings.selected_model.clone();
     let old_onboarding_completed = settings.onboarding_completed;
+    let old_provider = settings.transcription_provider;
 
     // Persist the new selection early so the frontend sees the correct model
     // when it reacts to events emitted by load_model.
     let mut settings = settings;
     settings.selected_model = model_id.to_string();
+    settings.transcription_provider = TranscriptionProvider::Local;
     settings.onboarding_completed = true;
 
     write_settings(app, settings);
@@ -151,6 +166,7 @@ pub fn switch_active_model(app: &AppHandle, model_id: &str) -> Result<(), String
         let mut settings = get_settings(app);
         settings.selected_model = old_model;
         settings.onboarding_completed = old_onboarding_completed;
+        settings.transcription_provider = old_provider;
         write_settings(app, settings);
         return Err(e.to_string());
     }
@@ -203,4 +219,89 @@ pub async fn cancel_download(
     model_manager
         .cancel_download(&model_id)
         .map_err(|e| e.to_string())
+}
+
+/// Every speech-to-text model OpenRouter currently offers (public catalog).
+///
+/// Nothing is persisted: the catalog is only needed while the OpenRouter
+/// settings UI is open, and a stored list would go stale silently.
+#[tauri::command]
+#[specta::specta]
+pub async fn fetch_openrouter_transcription_models() -> Result<Vec<String>, String> {
+    crate::openrouter_stt::fetch_models().await
+}
+
+/// Switch transcription to OpenRouter with `model_id`, shared by the command and
+/// the tray item.
+///
+/// The id comes from the caller (a discovered catalog entry or the previously
+/// saved choice); no catalog is persisted just to validate membership, and no
+/// billable request is made to verify the selection.
+pub fn apply_openrouter_transcription_model(app: &AppHandle, model_id: &str) -> Result<(), String> {
+    let model_id = model_id.trim();
+    if model_id.is_empty() {
+        return Err("Select an OpenRouter transcription model first".to_string());
+    }
+
+    let settings = get_settings(app);
+    let has_key = settings
+        .post_process_api_keys
+        .get(crate::openrouter_stt::PROVIDER_ID)
+        .is_some_and(|key| !key.trim().is_empty());
+    if !has_key {
+        return Err("Add an OpenRouter API key first".to_string());
+    }
+
+    if settings.transcription_provider == TranscriptionProvider::OpenRouter
+        && settings.openrouter_transcription_model == model_id
+    {
+        // Already the active selection; nothing to unload or rewrite.
+        return Ok(());
+    }
+
+    let transcription_manager = app.state::<Arc<TranscriptionManager>>();
+    if app.state::<Arc<AudioRecordingManager>>().is_recording() {
+        return Err("Transcription is in progress".to_string());
+    }
+
+    let Some(_operation_guard) = transcription_manager.try_acquire_operation() else {
+        return Err("Transcription is in progress".to_string());
+    };
+
+    // A pending native load must not land after the switch. Claiming the loading
+    // slot (and dropping the engine) makes the local ASR state empty before the
+    // provider flips, so nothing can resurrect a local engine afterwards.
+    let Some(_loading_guard) = transcription_manager.try_start_loading() else {
+        return Err("Model load already in progress".to_string());
+    };
+    transcription_manager
+        .unload_model()
+        .map_err(|e| e.to_string())?;
+
+    let mut settings = get_settings(app);
+    settings.transcription_provider = TranscriptionProvider::OpenRouter;
+    settings.openrouter_transcription_model = model_id.to_string();
+    settings.onboarding_completed = true;
+    write_settings(app, settings);
+
+    let _ = app.emit(
+        "model-state-changed",
+        ModelStateEvent {
+            event_type: "selection_changed".to_string(),
+            model_id: Some(model_id.to_string()),
+            model_name: Some(model_id.to_string()),
+            error: None,
+        },
+    );
+    log::info!("Transcription switched to OpenRouter model '{}'", model_id);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn select_openrouter_transcription_model(
+    app: AppHandle,
+    model_id: String,
+) -> Result<(), String> {
+    apply_openrouter_transcription_model(&app, &model_id)
 }

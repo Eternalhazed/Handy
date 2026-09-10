@@ -24,6 +24,7 @@ use crate::managers::history::{HistoryEntry, HistoryManager};
 use crate::managers::model::ModelManager;
 use crate::managers::transcription::TranscriptionManager;
 use crate::settings;
+use crate::settings::TranscriptionProvider;
 use crate::tray_i18n::get_tray_translations;
 use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
@@ -61,6 +62,13 @@ struct MenuInputs {
     selected_model: String,
     /// `(id, name)` of downloaded models, sorted by name.
     downloaded_models: Vec<(String, String)>,
+    /// Active transcription backend; `OpenRouter` shows the remote selection
+    /// instead of the local model in the submenu label.
+    transcription_provider: TranscriptionProvider,
+    /// Remembered OpenRouter model id (empty until one is chosen).
+    openrouter_model: String,
+    /// Whether OpenRouter transcription is configured (API key + chosen model).
+    openrouter_ready: bool,
     locale: String,
     update_checks_enabled: bool,
 }
@@ -324,6 +332,8 @@ fn compute_desired(app: &AppHandle, icon_state: TrayIconState) -> TrayDesired {
         .collect();
     downloaded_models.sort_by(|a, b| a.1.cmp(&b.1));
 
+    let openrouter_ready = settings.openrouter_transcription_ready();
+
     TrayDesired {
         icon_path: get_icon_path(theme, icon_state, warning),
         menu: MenuInputs {
@@ -332,6 +342,9 @@ fn compute_desired(app: &AppHandle, icon_state: TrayIconState) -> TrayDesired {
             model_loaded,
             selected_model: settings.selected_model,
             downloaded_models,
+            transcription_provider: settings.transcription_provider,
+            openrouter_model: settings.openrouter_transcription_model.clone(),
+            openrouter_ready,
             locale: settings.app_language,
             update_checks_enabled: settings.update_checks_enabled,
         },
@@ -530,21 +543,42 @@ fn build_menu(app: &AppHandle, inputs: &MenuInputs) -> tauri::Result<(Menu<tauri
             ],
         )?
     } else {
-        // Build model submenu — label is the active model name
-        let submenu_label = inputs
-            .downloaded_models
-            .iter()
-            .find(|(id, _)| *id == inputs.selected_model)
-            .map(|(_, name)| name.clone())
-            .unwrap_or_else(|| strings.model.clone());
+        // Build model submenu — label is the active backend's current selection
+        let submenu_label = if inputs.transcription_provider == TranscriptionProvider::OpenRouter {
+            openrouter_menu_label(inputs)
+        } else {
+            inputs
+                .downloaded_models
+                .iter()
+                .find(|(id, _)| *id == inputs.selected_model)
+                .map(|(_, name)| name.clone())
+                .unwrap_or_else(|| strings.model.clone())
+        };
 
         let model_submenu = Submenu::with_id(app, "model_submenu", &submenu_label, true)?;
         for (id, name) in &inputs.downloaded_models {
-            let is_active = *id == inputs.selected_model;
+            let is_active = inputs.transcription_provider == TranscriptionProvider::Local
+                && *id == inputs.selected_model;
             let item_id = format!("model_select:{}", id);
             let item = CheckMenuItem::with_id(app, &item_id, name, true, is_active, None::<&str>)?;
             model_submenu.append(&item)?;
         }
+
+        // Exactly one OpenRouter entry: the quick switch to the saved cloud
+        // selection, not a second catalog browser. Disabled until it is
+        // configured (key + model), since the tray cannot offer a picker.
+        let openrouter_item = CheckMenuItem::with_id(
+            app,
+            "openrouter_select",
+            openrouter_menu_label(inputs),
+            inputs.openrouter_ready,
+            inputs.transcription_provider == TranscriptionProvider::OpenRouter,
+            None::<&str>,
+        )?;
+        if !inputs.downloaded_models.is_empty() {
+            model_submenu.append(&separator()?)?;
+        }
+        model_submenu.append(&openrouter_item)?;
 
         let unload_model_i = MenuItem::with_id(
             app,
@@ -599,6 +633,16 @@ fn last_transcript_text(entry: &HistoryEntry) -> &str {
         .post_processed_text
         .as_deref()
         .unwrap_or(&entry.transcription_text)
+}
+
+/// Tray label for the OpenRouter entry: the brand name, plus the saved model id
+/// once one is chosen. Model ids are not translated, so neither is this.
+fn openrouter_menu_label(inputs: &MenuInputs) -> String {
+    if inputs.openrouter_model.trim().is_empty() {
+        "OpenRouter".to_string()
+    } else {
+        format!("OpenRouter — {}", inputs.openrouter_model)
+    }
 }
 
 pub fn set_tray_visibility(app: &AppHandle, visible: bool) {
@@ -670,6 +714,7 @@ pub fn copy_last_transcript(app: &AppHandle) {
 mod tests {
     use super::{last_transcript_text, load_tray_icon, MenuInputs, TrayDesired, TrayIconState};
     use crate::managers::history::HistoryEntry;
+    use crate::settings::TranscriptionProvider;
 
     fn build_entry(transcription: &str, post_processed: Option<&str>) -> HistoryEntry {
         HistoryEntry {
@@ -692,6 +737,9 @@ mod tests {
             model_loaded: true,
             selected_model: "small".to_string(),
             downloaded_models: vec![("small".to_string(), "Small".to_string())],
+            transcription_provider: TranscriptionProvider::Local,
+            openrouter_model: String::new(),
+            openrouter_ready: false,
             locale: "en".to_string(),
             update_checks_enabled: true,
         }

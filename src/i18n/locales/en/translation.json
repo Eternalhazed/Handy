@@ -152,7 +152,11 @@
       "translation": "Can translate to English",
       "translate": "Translate",
       "streaming": "Shows live transcription as you speak"
-    }
+    },
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "Not set up",
+    "use": "Use",
+    "configure": "Set up"
   },
   "settings": {
     "modelSettings": {
@@ -227,7 +231,22 @@
         "label": "Rescan",
         "tooltip": "Rescan for models added to the models folder or Hugging Face cache outside Handy"
       },
-      "noModelsMatch": "No models match this filter."
+      "noModelsMatch": "No models match this filter.",
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "Transcribe online without a local speech model.",
+        "use": "Use",
+        "activating": "Switching…",
+        "modelPlaceholder": "Search transcription models…",
+        "refresh": "Refresh model list",
+        "noModels": "No transcription models were returned. Try refreshing.",
+        "apiKeyLabel": "OpenRouter API key (shared with post-processing)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "API key configured",
+        "changeKey": "Change",
+        "privacyNote": "Recorded audio is sent to OpenRouter and the provider serving the selected model. Requires an internet connection and API credits.",
+        "notInCatalog": "Saved model is not in the current catalog."
+      }
     },
     "sound": {
       "title": "Sound",
