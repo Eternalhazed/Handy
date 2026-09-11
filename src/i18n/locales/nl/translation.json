@@ -152,7 +152,11 @@
       "translation": "Kan vertalen naar het Engels",
       "translate": "Vertalen",
       "streaming": "Toont live transcriptie tijdens het spreken"
-    }
+    },
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "Niet ingesteld",
+    "use": "Gebruiken",
+    "configure": "Instellen"
   },
   "settings": {
     "modelSettings": {
@@ -227,7 +231,24 @@
         "label": "Opnieuw scannen",
         "tooltip": "Scannen naar modellen die buiten Handy om zijn toegevoegd aan de modellenmap of Hugging Face-cache"
       },
-      "noModelsMatch": "Geen modellen voldoen aan dit filter."
+      "noModelsMatch": "Geen modellen voldoen aan dit filter.",
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "Transcribeer online zonder een lokaal spraakmodel.",
+        "use": "Gebruiken",
+        "activating": "Wisselen...",
+        "modelPlaceholder": "Transcriptiemodellen zoeken...",
+        "refresh": "Modellenlijst verversen",
+        "noModels": "Er zijn geen transcriptiemodellen teruggegeven. Probeer opnieuw te verversen.",
+        "apiKeyLabel": "OpenRouter API-sleutel (gedeeld met naverwerking)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "API-sleutel geconfigureerd",
+        "changeKey": "Wijzigen",
+        "privacyNote": "Opgenomen audio wordt verzonden naar OpenRouter en naar de provider die het geselecteerde model aanbiedt. Vereist een internetverbinding en API-credits.",
+        "notInCatalog": "Het opgeslagen model staat niet in de huidige catalogus.",
+        "section": "Online transcriptie",
+        "keyMissing": "Nog geen API-sleutel"
+      }
     },
     "sound": {
       "title": "Geluid",

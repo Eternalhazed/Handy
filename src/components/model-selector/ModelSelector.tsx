@@ -201,6 +201,9 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
 
   const getModelDisplayText = (): string => {
     if (isCloud) {
+      // A rejected switch must stay visible: this branch has no local load state
+      // to fall back on, so the failure is shown in place of the model.
+      if (modelError) return modelError;
       // Cloud shows the saved model rather than any local load state, and is
       // never presented as online/healthy from configuration alone.
       return cloudModel.trim().length > 0
@@ -293,6 +296,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     if (isCloud) {
       // Neutral while configured, error-coloured only while unusable — never
       // the local "ready" dot, which would claim a loaded local engine.
+      if (modelError) return "error";
       return cloudReady ? "unloaded" : "none";
     }
     if (Object.keys(verifyingModels).length > 0) return "verifying";

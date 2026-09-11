@@ -152,7 +152,11 @@
     },
     "cancel": "Annuler",
     "cancelDownload": "Annuler le téléchargement",
-    "legacy": "Hérité"
+    "legacy": "Hérité",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "Non configuré",
+    "use": "Utiliser",
+    "configure": "Configurer"
   },
   "settings": {
     "modelSettings": {
@@ -176,6 +180,23 @@
       "rescan": {
         "label": "Réanalyser",
         "tooltip": "Réanalyser pour détecter les modèles ajoutés au dossier des modèles ou au cache Hugging Face en dehors de Handy"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "Transcrivez en ligne sans modèle vocal local.",
+        "use": "Utiliser",
+        "activating": "Changement...",
+        "modelPlaceholder": "Rechercher des modèles de transcription…",
+        "refresh": "Actualiser la liste des modèles",
+        "noModels": "Aucun modèle de transcription n'a été renvoyé. Essayez d'actualiser.",
+        "apiKeyLabel": "Clé API OpenRouter (partagée avec le post-traitement)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "Clé API configurée",
+        "changeKey": "Modifier",
+        "privacyNote": "L'audio enregistré est envoyé à OpenRouter et au fournisseur qui exécute le modèle sélectionné. Nécessite une connexion Internet et des crédits API.",
+        "notInCatalog": "Le modèle enregistré ne figure pas dans le catalogue actuel.",
+        "section": "Transcription en ligne",
+        "keyMissing": "Pas encore de clé API"
       }
     },
     "general": {

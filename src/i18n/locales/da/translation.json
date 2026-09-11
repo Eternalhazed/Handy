@@ -152,7 +152,11 @@
       "translation": "Kan oversætte til engelsk",
       "translate": "Oversæt",
       "streaming": "Viser live transskription, mens du taler"
-    }
+    },
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "Ikke konfigureret",
+    "use": "Brug",
+    "configure": "Konfigurer"
   },
   "settings": {
     "modelSettings": {
@@ -227,7 +231,24 @@
         "label": "Søg igen",
         "tooltip": "Søg igen efter modeller, der er tilføjet til modelmappen eller Hugging Face-cachen uden for Handy"
       },
-      "noModelsMatch": "Ingen modeller matcher dette filter."
+      "noModelsMatch": "Ingen modeller matcher dette filter.",
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "Transskribér online uden en lokal talemodel.",
+        "use": "Brug",
+        "activating": "Skifter…",
+        "modelPlaceholder": "Søg efter transskriptionsmodeller…",
+        "refresh": "Opdater modelliste",
+        "noModels": "Der blev ikke returneret nogen transskriptionsmodeller. Prøv at opdatere listen.",
+        "apiKeyLabel": "API-nøgle til OpenRouter (deles med efterbehandling)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "API-nøgle konfigureret",
+        "changeKey": "Skift",
+        "privacyNote": "Optaget lyd sendes til OpenRouter og den udbyder, der betjener den valgte model. Kræver en internetforbindelse og API-kreditter.",
+        "notInCatalog": "Den gemte model findes ikke i det aktuelle katalog.",
+        "section": "Online transskription",
+        "keyMissing": "Ingen API-nøgle endnu"
+      }
     },
     "sound": {
       "title": "Lyd",

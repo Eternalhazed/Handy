@@ -429,9 +429,10 @@ impl TranscriptionManager {
         Arc::clone(&self.operation_gate).try_lock_owned().ok()
     }
 
-    /// Retained when a caller must keep the gate across a blocking native call:
-    /// the guard is moved into the blocking task and released when that task
-    /// finishes, never when the async wrapper returns.
+    /// Retained when a caller must hold the gate across a blocking native call:
+    /// the async caller keeps the guard alive while it awaits the blocking work,
+    /// so the gate stays held until that work finishes, not just until the
+    /// wrapper returns.
     pub fn operation_gate(&self) -> Arc<tokio::sync::Mutex<()>> {
         Arc::clone(&self.operation_gate)
     }

@@ -152,7 +152,11 @@
     },
     "cancel": "Hủy",
     "cancelDownload": "Hủy tải xuống",
-    "legacy": "Cũ"
+    "legacy": "Cũ",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "Chưa thiết lập",
+    "use": "Sử dụng",
+    "configure": "Thiết lập"
   },
   "settings": {
     "modelSettings": {
@@ -176,6 +180,23 @@
       "rescan": {
         "label": "Quét lại",
         "tooltip": "Quét lại các mô hình được thêm vào thư mục mô hình hoặc bộ nhớ đệm Hugging Face bên ngoài Handy"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "Phiên âm trực tuyến mà không cần mô hình giọng nói cục bộ.",
+        "use": "Sử dụng",
+        "activating": "Đang chuyển...",
+        "modelPlaceholder": "Tìm mô hình chuyển đổi…",
+        "refresh": "Làm mới danh sách mô hình",
+        "noModels": "Không có mô hình chuyển đổi nào được trả về. Hãy thử làm mới.",
+        "apiKeyLabel": "Khóa API OpenRouter (dùng chung với xử lý sau)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "Đã cấu hình khóa API",
+        "changeKey": "Thay đổi",
+        "privacyNote": "Âm thanh đã ghi sẽ được gửi đến OpenRouter và nhà cung cấp phục vụ mô hình đã chọn. Cần có kết nối internet và tín dụng API.",
+        "notInCatalog": "Mô hình đã lưu không có trong danh mục hiện tại.",
+        "section": "Phiên âm trực tuyến",
+        "keyMissing": "Chưa có khóa API"
       }
     },
     "general": {

@@ -152,7 +152,11 @@
     },
     "cancel": "Отмена",
     "cancelDownload": "Отменить загрузку",
-    "legacy": "Устаревшее"
+    "legacy": "Устаревшее",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "Не настроено",
+    "use": "Использовать",
+    "configure": "Настроить"
   },
   "settings": {
     "modelSettings": {
@@ -176,6 +180,23 @@
       "rescan": {
         "label": "Пересканировать",
         "tooltip": "Пересканировать модели, добавленные в папку моделей или кэш Hugging Face вне Handy"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "Транскрибировать онлайн без локальной речевой модели.",
+        "use": "Использовать",
+        "activating": "Переключение…",
+        "modelPlaceholder": "Поиск моделей транскрипции…",
+        "refresh": "Обновить список моделей",
+        "noModels": "Не удалось получить ни одной модели транскрипции. Попробуйте обновить список.",
+        "apiKeyLabel": "API-ключ OpenRouter (общий с постобработкой)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "API-ключ настроен",
+        "changeKey": "Изменить",
+        "privacyNote": "Записанный звук отправляется в OpenRouter и провайдеру, обслуживающему выбранную модель. Требуется подключение к интернету и кредиты API.",
+        "notInCatalog": "Сохранённая модель отсутствует в текущем каталоге.",
+        "section": "Онлайн-транскрипция",
+        "keyMissing": "Ключ API ещё не добавлен"
       }
     },
     "general": {

@@ -70,13 +70,15 @@ pub async fn retry_history_entry_transcription(
     id: i64,
 ) -> Result<(), String> {
     // A retry re-runs one recording through the *current* backend, so it must
-    // not interleave with a dictation or another operation.
-    if app.state::<Arc<AudioRecordingManager>>().is_recording() {
-        return Err("Cannot retry while recording".to_string());
-    }
+    // not interleave with a dictation or another operation. The gate is taken
+    // first so the recording check below cannot go stale (see
+    // `commands/models.rs::switch_active_model`).
     let Some(_operation_guard) = transcription_manager.try_acquire_operation() else {
         return Err("Transcription is in progress".to_string());
     };
+    if app.state::<Arc<AudioRecordingManager>>().is_recording() {
+        return Err("Cannot retry while recording".to_string());
+    }
 
     let entry = history_manager
         .get_entry_by_id(id)

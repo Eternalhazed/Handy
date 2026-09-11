@@ -544,8 +544,9 @@ impl ShortcutAction for TranscribeAction {
         // Serialize the whole operation (record → transcribe → output) against
         // commands that would change the transcription backend mid-run — e.g. a
         // history retry or switching to/from OpenRouter. Held until recording
-        // has actually started (see the end of this function), then released so
-        // selections are possible again while the user is speaking.
+        // has actually started (see the end of this function), then released;
+        // those commands re-check the recorder while holding this same gate, so
+        // a dictation always finishes on the backend it was started with.
         let Some(_operation_guard) = tm.try_acquire_operation() else {
             warn!("Ignoring start request: a transcription operation is already in progress");
             return;

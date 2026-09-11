@@ -152,7 +152,11 @@
     },
     "cancel": "キャンセル",
     "cancelDownload": "ダウンロードをキャンセル",
-    "legacy": "旧式"
+    "legacy": "旧式",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "未設定",
+    "use": "使用する",
+    "configure": "設定する"
   },
   "settings": {
     "modelSettings": {
@@ -176,6 +180,23 @@
       "rescan": {
         "label": "再スキャン",
         "tooltip": "Handy を使わずに models フォルダーまたは Hugging Face キャッシュに追加されたモデルを再スキャンします"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "ローカルの音声モデルを使わずにオンラインで文字起こしできます。",
+        "use": "使用する",
+        "activating": "切替中…",
+        "modelPlaceholder": "文字起こしモデルを検索…",
+        "refresh": "モデルリストを更新",
+        "noModels": "文字起こしモデルが返されませんでした。更新してみてください。",
+        "apiKeyLabel": "OpenRouter API キー(後処理と共有)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "API キー設定済み",
+        "changeKey": "変更",
+        "privacyNote": "録音された音声は OpenRouter および選択したモデルを提供するプロバイダーに送信されます。インターネット接続と API クレジットが必要です。",
+        "notInCatalog": "保存されたモデルは現在のカタログにありません。",
+        "section": "オンライン文字起こし",
+        "keyMissing": "API キーが未設定です"
       }
     },
     "general": {

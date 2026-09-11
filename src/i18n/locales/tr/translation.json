@@ -152,7 +152,11 @@
     },
     "cancel": "İptal",
     "cancelDownload": "İndirmeyi iptal et",
-    "legacy": "Eski"
+    "legacy": "Eski",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "Ayarlanmadı",
+    "use": "Kullan",
+    "configure": "Ayarla"
   },
   "settings": {
     "modelSettings": {
@@ -176,6 +180,23 @@
       "rescan": {
         "label": "Yeniden Tara",
         "tooltip": "Handy dışında modeller klasörüne veya Hugging Face önbelleğine eklenen modelleri yeniden tara"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "Yerel konuşma modeli olmadan çevrimiçi transkripsiyon yapın.",
+        "use": "Kullan",
+        "activating": "Değiştiriliyor...",
+        "modelPlaceholder": "Transkripsiyon modellerini ara…",
+        "refresh": "Model listesini yenile",
+        "noModels": "Hiç transkripsiyon modeli döndürülmedi. Yenilemeyi deneyin.",
+        "apiKeyLabel": "OpenRouter API anahtarı (Son İşlem ile paylaşılır)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "API anahtarı ayarlandı",
+        "changeKey": "Değiştir",
+        "privacyNote": "Kaydedilen ses OpenRouter'a ve seçili modeli sunan sağlayıcıya gönderilir; bunun için internet bağlantısı ve API kredisi gerekir.",
+        "notInCatalog": "Kayıtlı model güncel katalogda bulunmuyor.",
+        "section": "Çevrimiçi transkripsiyon",
+        "keyMissing": "Henüz API anahtarı yok"
       }
     },
     "general": {

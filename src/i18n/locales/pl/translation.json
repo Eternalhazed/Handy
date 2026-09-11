@@ -152,7 +152,11 @@
     },
     "cancel": "Anuluj",
     "cancelDownload": "Anuluj pobieranie",
-    "legacy": "Przestarzałe"
+    "legacy": "Przestarzałe",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "Nie skonfigurowano",
+    "use": "Użyj",
+    "configure": "Skonfiguruj"
   },
   "settings": {
     "modelSettings": {
@@ -176,6 +180,23 @@
       "rescan": {
         "label": "Skanuj ponownie",
         "tooltip": "Skanuj ponownie w poszukiwaniu modeli dodanych do folderu modeli lub pamięci podręcznej Hugging Face poza Handy"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "Transkrybuj online bez lokalnego modelu mowy.",
+        "use": "Użyj",
+        "activating": "Przełączanie…",
+        "modelPlaceholder": "Szukaj modeli transkrypcji…",
+        "refresh": "Odśwież listę modeli",
+        "noModels": "Nie zwrócono żadnych modeli transkrypcji. Spróbuj odświeżyć listę.",
+        "apiKeyLabel": "Klucz API OpenRouter (współdzielony z postprocesem)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "Klucz API skonfigurowany",
+        "changeKey": "Zmień",
+        "privacyNote": "Nagrane audio jest wysyłane do OpenRouter i dostawcy obsługującego wybrany model. Wymaga połączenia z internetem i kredytów API.",
+        "notInCatalog": "Zapisany model nie znajduje się w bieżącym katalogu.",
+        "section": "Transkrypcja online",
+        "keyMissing": "Brak klucza API"
       }
     },
     "general": {

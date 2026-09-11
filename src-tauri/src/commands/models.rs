@@ -97,17 +97,23 @@ pub fn switch_active_model(app: &AppHandle, model_id: &str) -> Result<(), String
     let model_manager = app.state::<Arc<ModelManager>>();
     let transcription_manager = app.state::<Arc<TranscriptionManager>>();
 
+    // Selecting a local model always switches the backend back to local —
+    // including when OpenRouter is currently active.
+    //
+    // The operation gate is taken *before* the recording check below, which is
+    // what makes that check atomic: `TranscribeAction::start` holds this gate
+    // until recording has actually begun, so while we hold it no dictation can
+    // start between our check and the switch — a recording that slipped in there
+    // would otherwise finish on the backend we are about to select.
+    let Some(_operation_guard) = transcription_manager.try_acquire_operation() else {
+        return Err("Transcription is in progress".to_string());
+    };
+
     // A live dictation is already in flight; switching the model under it would
     // change what the running operation was started for.
     if app.state::<Arc<AudioRecordingManager>>().is_recording() {
         return Err("Transcription is in progress".to_string());
     }
-
-    // Selecting a local model always switches the backend back to local —
-    // including when OpenRouter is currently active.
-    let Some(_operation_guard) = transcription_manager.try_acquire_operation() else {
-        return Err("Transcription is in progress".to_string());
-    };
 
     // Atomically claim the loading slot — prevents concurrent model loads
     // from tray double-clicks or overlapping commands. The guard resets the
@@ -260,13 +266,19 @@ pub fn apply_openrouter_transcription_model(app: &AppHandle, model_id: &str) -> 
     }
 
     let transcription_manager = app.state::<Arc<TranscriptionManager>>();
-    if app.state::<Arc<AudioRecordingManager>>().is_recording() {
-        return Err("Transcription is in progress".to_string());
-    }
 
+    // Gate first, then check: holding the operation gate makes the recording
+    // check below atomic against `TranscribeAction::start` (see the same pattern
+    // in `switch_active_model`). Without it a dictation could start in the gap
+    // and then be transcribed by OpenRouter despite being started for a local
+    // model.
     let Some(_operation_guard) = transcription_manager.try_acquire_operation() else {
         return Err("Transcription is in progress".to_string());
     };
+
+    if app.state::<Arc<AudioRecordingManager>>().is_recording() {
+        return Err("Transcription is in progress".to_string());
+    }
 
     // A pending native load must not land after the switch. Claiming the loading
     // slot (and dropping the engine) makes the local ASR state empty before the

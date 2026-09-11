@@ -152,7 +152,11 @@
       "translate": "ترجمة",
       "streaming": "يعرض النسخ المباشر أثناء التحدث"
     },
-    "legacy": "قديم"
+    "legacy": "قديم",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "لم يتم الإعداد",
+    "use": "استخدام",
+    "configure": "إعداد"
   },
   "settings": {
     "general": {
@@ -634,6 +638,23 @@
       "rescan": {
         "label": "إعادة الفحص",
         "tooltip": "إعادة الفحص بحثًا عن النماذج المضافة إلى مجلد النماذج أو ذاكرة Hugging Face التخزينية المؤقتة خارج Handy"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "النسخ عبر الإنترنت دون نموذج صوتي محلي.",
+        "use": "استخدام",
+        "activating": "جارٍ التبديل...",
+        "modelPlaceholder": "ابحث عن نماذج النسخ…",
+        "refresh": "تحديث قائمة النماذج",
+        "noModels": "لم يتم إرجاع أي نماذج نسخ. جرّب التحديث.",
+        "apiKeyLabel": "مفتاح OpenRouter API (مشترك مع المعالجة اللاحقة)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "تم إعداد مفتاح API",
+        "changeKey": "تغيير",
+        "privacyNote": "يُرسل الصوت المسجّل إلى OpenRouter وإلى المزود الذي يقدّم النموذج المختار، ويتطلب ذلك اتصالاً بالإنترنت ورصيد API.",
+        "notInCatalog": "النموذج المحفوظ غير موجود في الكتالوج الحالي.",
+        "section": "النسخ عبر الإنترنت",
+        "keyMissing": "لا يوجد مفتاح API بعد"
       }
     }
   },

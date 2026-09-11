@@ -24,6 +24,8 @@ type BaseProps = {
   onChange: (value: string | null, action: ActionMeta<SelectOption>) => void;
   onBlur?: () => void;
   className?: string;
+  /** Control density. `sm` is a compact 32px control; defaults to `md` (40px). */
+  size?: "md" | "sm";
   formatCreateLabel?: (input: string) => string;
 };
 
@@ -119,6 +121,33 @@ const selectStyles: StylesConfig<SelectOption, false> = {
   }),
 };
 
+/**
+ * Compact 32px variant, for cards that stack several controls. Only the
+ * density-related properties are overridden; everything else is inherited from
+ * [`selectStyles`] so the two sizes cannot drift apart.
+ */
+const compactSelectStyles: StylesConfig<SelectOption, false> = {
+  ...selectStyles,
+  control: (base, state) => ({
+    ...selectStyles.control!(base, state),
+    minHeight: 32,
+    fontSize: "0.8125rem",
+  }),
+  valueContainer: (base, state) => ({
+    ...selectStyles.valueContainer!(base, state),
+    paddingInline: 8,
+    paddingBlock: 2,
+  }),
+  dropdownIndicator: (base, state) => ({
+    ...selectStyles.dropdownIndicator!(base, state),
+    padding: 4,
+  }),
+  clearIndicator: (base, state) => ({
+    ...selectStyles.clearIndicator!(base, state),
+    padding: 4,
+  }),
+};
+
 export const Select: React.FC<SelectProps> = React.memo(
   ({
     value,
@@ -130,6 +159,7 @@ export const Select: React.FC<SelectProps> = React.memo(
     onChange,
     onBlur,
     className = "",
+    size = "md",
     isCreatable,
     formatCreateLabel,
     onCreateOption,
@@ -159,7 +189,7 @@ export const Select: React.FC<SelectProps> = React.memo(
       isLoading,
       onBlur,
       isClearable,
-      styles: selectStyles,
+      styles: size === "sm" ? compactSelectStyles : selectStyles,
     };
 
     if (isCreatable) {

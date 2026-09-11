@@ -38,8 +38,9 @@ const RETRY_BACKOFF: [Duration; 2] = [Duration::from_millis(400), Duration::from
 /// A failed upload, classified by whether repeating it is safe.
 struct UploadError {
     message: String,
-    /// True when the provider did not process the request, so a retry cannot
-    /// double-bill or duplicate output.
+    /// True only when the provider provably did not process the request — the
+    /// connection could not be established, or the request was refused before
+    /// any work started — so replaying it cannot double-bill or duplicate output.
     retryable: bool,
 }
 
@@ -136,8 +137,8 @@ async fn fetch_models_from(url: &str, timeout: Duration) -> Result<Vec<String>, 
 /// deadline.
 ///
 /// The deadline covers the whole exchange, so a slow response cannot take twice
-/// the configured time. Failures also carry whether the provider processed the
-/// request, which is what makes a retry safe or not.
+/// the configured time. Each failure carries whether the provider *provably*
+/// did not process the request, which is what makes a retry safe or not.
 async fn exchange(
     context: &str,
     label: &str,
@@ -146,13 +147,24 @@ async fn exchange(
 ) -> Result<Vec<u8>, UploadError> {
     let response = match tokio::time::timeout_at(deadline, request.send()).await {
         Ok(Ok(response)) => response,
-        // Nothing was delivered, so repeating it cannot double-bill.
+        // Only a failure to *establish* the connection proves the provider never
+        // received the request. Any other transport failure — the connection was
+        // lost after the body went out, or response headers never arrived — may
+        // have been processed and billed, so it is reported as final. History
+        // offers a manual retry for exactly that case.
         Ok(Err(error)) => {
-            return Err(UploadError::retryable(
-                crate::llm_client::report_reqwest_error(context, &error),
-            ))
+            let message = crate::llm_client::report_reqwest_error(context, &error);
+            return Err(if error.is_connect() {
+                UploadError::retryable(message)
+            } else {
+                UploadError::fatal(message)
+            });
         }
-        Err(_) => return Err(UploadError::retryable(format!("{} ({})", TIMED_OUT, label))),
+        // The deadline elapsed with the request already in flight; the provider
+        // may have transcribed it, so this must not be replayed.
+        Err(_) => {
+            return Err(UploadError::fatal(format!("{} ({})", TIMED_OUT, label)));
+        }
     };
 
     let status = response.status();
@@ -160,8 +172,9 @@ async fn exchange(
         return Err(status_error(label, status));
     }
 
-    // Past this point the provider has already transcribed the upload: a failed
-    // or truncated body must not be retried, or it could bill a second time.
+    // Past this point the provider has accepted the upload (it returned a
+    // status), so a failed or truncated body must not be retried: the request
+    // may already have been transcribed and billed.
     match tokio::time::timeout_at(deadline, response.bytes()).await {
         Ok(Ok(bytes)) => Ok(bytes.to_vec()),
         Ok(Err(error)) => Err(UploadError::fatal(crate::llm_client::report_reqwest_error(
@@ -247,13 +260,14 @@ async fn transcribe_to(
 /// Upload the recording, retrying only failures that are provably safe to
 /// repeat, all inside one total budget.
 ///
-/// A retry may re-upload audio, so it happens only when the provider did not
-/// process the request (no response at all, or a rate-limit/gateway failure) —
-/// see [`UploadError::retryable`]. A dropped or unusable *success* response is
-/// never repeated: the transcription already happened, and a second attempt
-/// could bill twice or duplicate work. When the retries are exhausted the error
-/// surfaces as usual, the recording is preserved, and History offers a manual
-/// retry.
+/// A retry may re-upload audio, so it happens only when the provider provably
+/// did not process the request: the connection could not be established, or the
+/// request was refused with 429/503 — see [`UploadError::retryable`]. Anything
+/// that leaves it unknown whether the audio was transcribed (a dropped
+/// connection after the body was sent, an edge 5xx, a missing or unusable
+/// response) is reported as final, because a second attempt could bill twice.
+/// When the retries are exhausted the error surfaces as usual, the recording is
+/// preserved, and History offers a manual retry.
 async fn transcribe_with_budget(
     endpoint: &str,
     samples: Vec<f32>,
@@ -402,9 +416,11 @@ const TIMED_OUT: &str = "OpenRouter request timed out";
 /// Map a non-2xx status to an actionable message. The response body is never
 /// included: it can echo request data and would leak into logs and toasts.
 ///
-/// The status also decides whether a retry is allowed: a rate limit or a gateway
-/// failure means the request was not transcribed, while a bad key, missing
-/// credits, an unknown model or oversized audio would fail identically again.
+/// The status also decides whether a retry is allowed. Only a rate limit (429)
+/// and "service unavailable" (503) prove the provider refused the request
+/// without transcribing it. A 5xx from the edge or an internal error
+/// (500/502/504) cannot establish that, so replaying one could upload — and
+/// bill — the same audio twice.
 fn status_error(context: &str, status: reqwest::StatusCode) -> UploadError {
     let message = match status.as_u16() {
         401 => {
@@ -419,7 +435,7 @@ fn status_error(context: &str, status: reqwest::StatusCode) -> UploadError {
         _ => format!("{context} failed with status {status}"),
     };
 
-    if matches!(status.as_u16(), 429 | 500 | 502 | 503 | 504) {
+    if matches!(status.as_u16(), 429 | 503) {
         UploadError::retryable(message)
     } else {
         UploadError::fatal(message)
@@ -827,6 +843,50 @@ mod tests {
 
         assert!(error.to_string().contains("401"), "got: {error}");
         assert_eq!(hits.load(Ordering::SeqCst), 1, "upload was repeated");
+    }
+
+    #[tokio::test]
+    async fn openrouter_stt_dropped_response_is_not_replayed() {
+        // The provider received the upload but the response never arrived (the
+        // connection was closed afterwards). The audio may already have been
+        // transcribed and billed, so the request must not be sent again.
+        let hits = Arc::new(AtomicUsize::new(0));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let hits_for_server = Arc::clone(&hits);
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                hits_for_server.fetch_add(1, Ordering::SeqCst);
+                // Drain the whole request (headers + body) before closing without
+                // answering, so the client's failure is "no response" rather than
+                // "the request could not be sent".
+                let mut buffer = [0_u8; 4096];
+                while let Ok(Ok(read)) =
+                    tokio::time::timeout(Duration::from_millis(50), stream.read(&mut buffer)).await
+                {
+                    if read == 0 {
+                        break;
+                    }
+                }
+                let _ = stream.shutdown().await;
+            }
+        });
+
+        let settings = settings_with_key("test-key");
+        let error = transcribe_with_budget(
+            &format!("http://{address}/audio/transcriptions"),
+            vec![0.1_f32; 800],
+            &settings,
+            Duration::from_secs(5),
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(
+            hits.load(Ordering::SeqCst),
+            1,
+            "a possibly-billed upload was replayed: {error}"
+        );
     }
 
     #[tokio::test]

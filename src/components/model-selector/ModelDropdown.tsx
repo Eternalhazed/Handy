@@ -44,14 +44,16 @@ const ModelDropdown: React.FC<ModelDropdownProps> = ({
   };
 
   return (
-    <div className="absolute bottom-full start-0 mb-2 w-64 max-h-[80vh] overflow-y-auto bg-background border border-mid-gray/20 rounded-lg shadow-lg py-2 z-50">
+    <div className="absolute bottom-full start-0 mb-2 w-72 max-h-[80vh] overflow-y-auto bg-background border border-mid-gray/20 rounded-lg shadow-lg py-2 z-50">
       {downloadedModels.length > 0 ? (
         <div>
           {downloadedModels.map((model) => (
             <div
               key={model.id}
               onClick={() => handleModelClick(model.id)}
-              onKeyDown={(e) => handleRowKeyDown(e, () => handleModelClick(model.id))}
+              onKeyDown={(e) =>
+                handleRowKeyDown(e, () => handleModelClick(model.id))
+              }
               tabIndex={0}
               role="button"
               className={`w-full px-3 py-2 text-start hover:bg-mid-gray/10 transition-colors cursor-pointer focus:outline-none ${
@@ -89,9 +91,14 @@ const ModelDropdown: React.FC<ModelDropdownProps> = ({
           ))}
         </div>
       ) : (
-        <div className="px-3 py-2 text-sm text-text/60">
-          {t("modelSelector.noModelsAvailable")}
-        </div>
+        // While OpenRouter is the active source the empty message would sit
+        // directly above the populated cloud row and read as a contradiction,
+        // so it is only shown when a local model is actually what's missing.
+        !isCloud && (
+          <div className="px-3 py-2 text-sm text-text/60">
+            {t("modelSelector.noModelsAvailable")}
+          </div>
+        )
       )}
 
       {/* One OpenRouter row: a source switch, not a second catalog. Activating

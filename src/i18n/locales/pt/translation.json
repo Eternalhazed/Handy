@@ -152,7 +152,11 @@
     },
     "cancel": "Cancelar",
     "cancelDownload": "Cancelar download",
-    "legacy": "Legado"
+    "legacy": "Legado",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "Não configurado",
+    "use": "Usar",
+    "configure": "Configurar"
   },
   "settings": {
     "modelSettings": {
@@ -227,6 +231,23 @@
       "rescan": {
         "label": "Reescanear",
         "tooltip": "Reescaneia em busca de modelos adicionados à pasta de modelos ou ao cache do Hugging Face fora do Handy"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "Transcreva online sem um modelo de voz local.",
+        "use": "Usar",
+        "activating": "Alternando...",
+        "modelPlaceholder": "Buscar modelos de transcrição…",
+        "refresh": "Atualizar lista de modelos",
+        "noModels": "Nenhum modelo de transcrição foi retornado. Tente atualizar.",
+        "apiKeyLabel": "Chave da API do OpenRouter (compartilhada com o pós-processamento)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "Chave da API configurada",
+        "changeKey": "Alterar",
+        "privacyNote": "O áudio gravado é enviado ao OpenRouter e ao provedor que executa o modelo selecionado. Requer conexão com a Internet e créditos de API.",
+        "notInCatalog": "O modelo salvo não está no catálogo atual.",
+        "section": "Transcrição online",
+        "keyMissing": "Ainda sem chave de API"
       }
     },
     "sound": {
