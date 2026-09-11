@@ -772,6 +772,12 @@ impl ShortcutAction for TranscribeAction {
 
             // One settings snapshot for the whole operation: provider, model,
             // language and API key cannot change under a running request.
+            //
+            // This is also the provider the recording was *started* with: while a
+            // recording is active, selecting a model or activating OpenRouter is
+            // rejected by the `is_recording` guard in those commands, and once the
+            // recorder stops they are rejected again by the operation gate this
+            // task holds. No start-time snapshot has to be threaded through.
             let settings = get_settings(&ah);
             let is_cloud = settings.transcription_provider == TranscriptionProvider::OpenRouter;
 

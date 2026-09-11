@@ -385,6 +385,7 @@ fn build_payload(
 
 /// Single-attempt transport, used by tests to observe one exchange at a time.
 /// Production goes through [`transcribe_attempt`] via the retry loop.
+#[cfg(test)]
 async fn transcribe_request(
     url: &str,
     api_key: &str,

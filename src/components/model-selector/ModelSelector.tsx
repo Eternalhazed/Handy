@@ -47,8 +47,10 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   // loaded, so its status must never be reported as a local load state.
   const cloudModel = settings?.openrouter_transcription_model ?? "";
   const isCloud = settings?.transcription_provider === "openrouter";
-  const cloudConfigured =
-    isCloud &&
+  // Ready = a saved model plus a key, independent of which backend is active:
+  // that is what makes the switcher row able to activate cloud from a local
+  // session instead of only linking to the Models page.
+  const cloudReady =
     cloudModel.trim().length > 0 &&
     (settings?.post_process_api_keys?.openrouter ?? "").trim().length > 0;
 
@@ -183,7 +185,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
    */
   const handleCloudSelect = async () => {
     setShowModelDropdown(false);
-    if (isCloud || !cloudConfigured) {
+    if (isCloud || !cloudReady) {
       onOpenModels?.();
       return;
     }
@@ -291,7 +293,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     if (isCloud) {
       // Neutral while configured, error-coloured only while unusable — never
       // the local "ready" dot, which would claim a loaded local engine.
-      return cloudConfigured ? "unloaded" : "none";
+      return cloudReady ? "unloaded" : "none";
     }
     if (Object.keys(verifyingModels).length > 0) return "verifying";
     if (Object.keys(extractingModels).length > 0) return "extracting";
@@ -316,7 +318,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
             models={models}
             currentModelId={displayModelId}
             isCloud={isCloud}
-            cloudConfigured={cloudConfigured}
+            cloudConfigured={cloudReady}
             cloudModel={cloudModel}
             onModelSelect={handleModelSelect}
             onCloudSelect={() => void handleCloudSelect()}
