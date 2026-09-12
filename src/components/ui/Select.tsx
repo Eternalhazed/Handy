@@ -27,6 +27,14 @@ type BaseProps = {
   /** Control density. `sm` is a compact 32px control; defaults to `md` (40px). */
   size?: "md" | "sm";
   formatCreateLabel?: (input: string) => string;
+  /**
+   * Controlled menu visibility. Omit it (and the two handlers) and the menu
+   * opens/closes itself as usual — e.g. a card surface that opens the picker
+   * on click passes all three; every other caller passes none.
+   */
+  menuIsOpen?: boolean;
+  onMenuOpen?: () => void;
+  onMenuClose?: () => void;
 };
 
 type CreatableProps = {
@@ -160,10 +168,13 @@ export const Select: React.FC<SelectProps> = React.memo(
     onBlur,
     className = "",
     size = "md",
+    menuIsOpen,
+    onMenuOpen,
+    onMenuClose,
     isCreatable,
     formatCreateLabel,
     onCreateOption,
-  }) => {
+    }) => {
     const selectValue = React.useMemo(() => {
       if (!value) return null;
       const existing = options.find((option) => option.value === value);
@@ -189,6 +200,9 @@ export const Select: React.FC<SelectProps> = React.memo(
       isLoading,
       onBlur,
       isClearable,
+      menuIsOpen,
+      onMenuOpen,
+      onMenuClose,
       styles: size === "sm" ? compactSelectStyles : selectStyles,
     };
 

@@ -286,11 +286,24 @@ pub fn apply_openrouter_transcription_model(app: &AppHandle, model_id: &str) -> 
     let Some(_loading_guard) = transcription_manager.try_start_loading() else {
         return Err("Model load already in progress".to_string());
     };
+
+    // The readiness check above raced with key edits, which take no gate. Re-check
+    // against fresh settings before dropping the local engine: persisting
+    // provider=OpenRouter with a blank key would strand the user on an unusable
+    // backend after the engine they could have used is gone.
+    let mut settings = get_settings(app);
+    let has_key = settings
+        .post_process_api_keys
+        .get(crate::openrouter_stt::PROVIDER_ID)
+        .is_some_and(|key| !key.trim().is_empty());
+    if !has_key {
+        return Err("Add an OpenRouter API key first".to_string());
+    }
+
     transcription_manager
         .unload_model()
         .map_err(|e| e.to_string())?;
 
-    let mut settings = get_settings(app);
     settings.transcription_provider = TranscriptionProvider::OpenRouter;
     settings.openrouter_transcription_model = model_id.to_string();
     settings.onboarding_completed = true;

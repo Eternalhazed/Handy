@@ -66,6 +66,7 @@ export const OpenRouterTranscriptionCard: React.FC<
   /** True once a catalog request has completed successfully. */
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [draftModel, setDraftModel] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [keyEditing, setKeyEditing] = useState(false);
   const [activating, setActivating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -174,6 +175,31 @@ export const OpenRouterTranscriptionCard: React.FC<
     ? "border-logo-primary/50 bg-logo-primary/10"
     : "border-mid-gray/20";
 
+  const useLabel =
+    selectedModel.trim().length > 0
+      ? t("modelSelector.openrouter", { model: selectedModel })
+      : t("settings.models.openrouter.use");
+
+  /**
+   * Card-level action, mirroring a local card's click-to-select: activating a
+   * ready-but-inactive source is the same gesture as picking an `available`
+   * model. Every other state opens the model menu instead, because for this
+   * source the menu — not a re-click — is how the model changes.
+   */
+  const handleCardClick = () => {
+    if (activating) return;
+    if (!isActive && canActivate) {
+      void activate(selectedModel);
+    } else {
+      setMenuOpen(true);
+    }
+  };
+
+  // Inner controls keep their own behavior (same as Delete/Cancel on a local
+  // card); only the card body triggers the action above.
+  const stopClick = (event: React.MouseEvent) => {
+    event.stopPropagation();
+  };
   return (
     <div className="space-y-3">
       {/* Section header follows the local sections: label left, icon action
@@ -197,7 +223,24 @@ export const OpenRouterTranscriptionCard: React.FC<
       </div>
 
       <div
-        className={`flex flex-col rounded-xl px-4 py-3 gap-2 text-left transition-all duration-200 border-2 ${borderClass}`}
+        role="button"
+        tabIndex={activating ? undefined : 0}
+        onClick={handleCardClick}
+        onKeyDown={(e) => {
+          // Inner controls own their keys; only the card itself answers here.
+          if (
+            (e.key === "Enter" || e.key === " ") &&
+            e.target === e.currentTarget
+          ) {
+            e.preventDefault();
+            handleCardClick();
+          }
+        }}
+        className={`flex flex-col rounded-xl px-4 py-3 gap-2 text-left transition-all duration-200 border-2 ${borderClass} ${
+          activating
+            ? "opacity-50 cursor-not-allowed"
+            : "cursor-pointer hover:border-logo-primary/50 hover:bg-logo-primary/5 hover:shadow-lg hover:scale-[1.01] active:scale-[0.99]"
+        }`}
       >
         {/* Title row: name + state badge, then the description — same as a
             local model card. */}
@@ -224,16 +267,21 @@ export const OpenRouterTranscriptionCard: React.FC<
         {/* Model picker — searchable, and able to show a saved model that the
             current catalog no longer contains. Compact control: this card
             stacks a picker, a key field and a metadata row. */}
-        <Select
-          value={selectedModel || null}
-          options={options}
-          onChange={handleModelChange}
-          placeholder={t("settings.models.openrouter.modelPlaceholder")}
-          isClearable={false}
-          isLoading={catalogLoading}
-          disabled={activating}
-          size="sm"
-        />
+        <div onClick={stopClick}>
+          <Select
+            value={selectedModel || null}
+            options={options}
+            onChange={handleModelChange}
+            placeholder={t("settings.models.openrouter.modelPlaceholder")}
+            isClearable={false}
+            isLoading={catalogLoading}
+            disabled={activating}
+            size="sm"
+            menuIsOpen={menuOpen}
+            onMenuOpen={() => setMenuOpen(true)}
+            onMenuClose={() => setMenuOpen(false)}
+          />
+        </div>
 
         {!catalogError && !catalogLoading && catalogLoaded && catalog.length === 0 && (
           <p className="text-xs text-text/40">
@@ -242,7 +290,7 @@ export const OpenRouterTranscriptionCard: React.FC<
         )}
 
         {showKeyField && (
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1" onClick={stopClick}>
             <label className="text-xs font-medium text-text/60">
               {t("settings.models.openrouter.apiKeyLabel")}
             </label>
@@ -257,7 +305,10 @@ export const OpenRouterTranscriptionCard: React.FC<
         )}
 
         {/* Metadata chips + actions, matching a local card's bottom row. */}
-        <div className="flex items-center gap-3 w-full -mb-0.5 mt-0.5 h-5">
+        <div
+          className="flex items-center gap-3 w-full -mb-0.5 mt-0.5 min-h-5"
+          onClick={stopClick}
+        >
           {hasKey ? (
             <div
               className="flex items-center gap-1 text-xs text-text/50"
@@ -306,7 +357,8 @@ export const OpenRouterTranscriptionCard: React.FC<
               size="sm"
               disabled={!canActivate}
               onClick={() => void activate(selectedModel)}
-              title={t("settings.models.openrouter.use")}
+              title={useLabel}
+              aria-label={useLabel}
               className={`flex items-center gap-1.5 text-logo-primary/85 hover:text-logo-primary hover:bg-logo-primary/10 ${
                 hasKey && !keyEditing ? "" : "ms-auto"
               }`}

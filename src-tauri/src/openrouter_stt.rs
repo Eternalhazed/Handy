@@ -11,6 +11,7 @@
 //! model is stored separately so neither pipeline can change the other's choice.
 
 use crate::settings::{AppSettings, PostProcessProvider};
+use log::{debug, info, warn};
 use serde_json::{json, Value};
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -303,7 +304,7 @@ async fn transcribe_with_budget(
             .map_err(|e| anyhow::anyhow!("Audio encoding task failed: {e}"))?
             .map_err(anyhow::Error::msg)?;
 
-    log::debug!(
+    debug!(
         "Uploading {} samples ({} bytes encoded) to OpenRouter for transcription",
         sample_count,
         payload.len()
@@ -315,7 +316,7 @@ async fn transcribe_with_budget(
         match transcribe_attempt(endpoint, &api_key, payload.clone(), deadline).await {
             Ok(text) => {
                 if attempt > 1 {
-                    log::info!("OpenRouter transcription succeeded on attempt {}", attempt);
+                    info!("OpenRouter transcription succeeded on attempt {}", attempt);
                 }
                 return Ok(text);
             }
@@ -326,12 +327,9 @@ async fn transcribe_with_budget(
             {
                 let wait = RETRY_BACKOFF[attempt - 1]
                     .min(deadline.saturating_duration_since(tokio::time::Instant::now()));
-                log::warn!(
+                warn!(
                     "OpenRouter transcription attempt {} of {} failed ({}); retrying in {:?}",
-                    attempt,
-                    MAX_TRANSCRIPTION_ATTEMPTS,
-                    error.message,
-                    wait
+                    attempt, MAX_TRANSCRIPTION_ATTEMPTS, error.message, wait
                 );
                 tokio::time::sleep(wait).await;
                 attempt += 1;

@@ -496,9 +496,9 @@ pub(crate) async fn process_transcription_output(
     let mut post_processed_text: Option<String> = None;
     let mut post_process_prompt: Option<String> = None;
 
-    // Resolve the language the transcription actually ran in (the persisted
-    // intent coerced against the loaded model's capabilities) so OpenCC keys off
-    // the effective language rather than a possibly-stale intent.
+    // Resolve the language the transcription actually ran in so OpenCC keys off
+    // the effective language rather than a possibly-stale intent. Local models
+    // coerce the intent against their capabilities; cloud runs keep it verbatim.
     let effective_language = resolve_effective_language(app, settings);
     if let Some(converted_text) =
         maybe_convert_chinese_variant(&effective_language, transcription).await
