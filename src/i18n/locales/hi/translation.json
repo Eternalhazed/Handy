@@ -152,7 +152,11 @@
       "translation": "अंग्रेज़ी में अनुवाद कर सकता है",
       "translate": "अनुवाद करें",
       "streaming": "बोलते समय लाइव ट्रांसक्रिप्शन दिखाता है"
-    }
+    },
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "सेट अप नहीं है",
+    "use": "उपयोग करें",
+    "configure": "सेट अप करें"
   },
   "settings": {
     "modelSettings": {
@@ -227,7 +231,24 @@
         "label": "फिर से स्कैन करें",
         "tooltip": "Handy के बाहर, मॉडल फ़ोल्डर या Hugging Face कैश में जोड़े गए मॉडल के लिए फिर से स्कैन करें"
       },
-      "noModelsMatch": "इस फ़िल्टर से मेल खाने वाला कोई मॉडल नहीं है."
+      "noModelsMatch": "इस फ़िल्टर से मेल खाने वाला कोई मॉडल नहीं है.",
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "बिना लोकल स्पीच मॉडल के ऑनलाइन ट्रांसक्राइब करें.",
+        "use": "उपयोग करें",
+        "activating": "बदला जा रहा है...",
+        "modelPlaceholder": "ट्रांसक्रिप्शन मॉडल खोजें…",
+        "refresh": "मॉडल सूची रीफ़्रेश करें",
+        "noModels": "कोई ट्रांसक्रिप्शन मॉडल नहीं मिला. रीफ़्रेश करके देखें.",
+        "apiKeyLabel": "OpenRouter API कुंजी (पोस्ट प्रोसेसिंग के साथ साझा)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "API कुंजी सेट है",
+        "changeKey": "बदलें",
+        "privacyNote": "रिकॉर्ड किया गया ऑडियो OpenRouter और चुने गए मॉडल को उपलब्ध कराने वाले प्रोवाइडर को भेजा जाता है, और इसके लिए इंटरनेट कनेक्शन व API क्रेडिट चाहिए.",
+        "notInCatalog": "सेव किया गया मॉडल मौजूदा कैटलॉग में नहीं है.",
+        "section": "ऑनलाइन ट्रांसक्रिप्शन",
+        "keyMissing": "अभी कोई API कुंजी नहीं"
+      }
     },
     "sound": {
       "title": "आवाज़",

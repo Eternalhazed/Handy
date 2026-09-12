@@ -12,12 +12,14 @@ import {
 import type { ModelCardStatus } from "@/components/onboarding";
 import { ModelCard } from "@/components/onboarding";
 import { useModelStore } from "@/stores/modelStore";
+import { useSettings } from "@/hooks/useSettings";
 import {
   getLanguageLabel,
   MODEL_CAPABILITY_LANGUAGES,
   supportsLanguageCode,
 } from "@/lib/constants/languages.ts";
 import type { ModelInfo } from "@/bindings";
+import { OpenRouterTranscriptionCard } from "./OpenRouterTranscriptionCard";
 
 // check if model supports a language based on its supported_languages list
 const modelSupportsLanguage = (model: ModelInfo, langCode: string): boolean => {
@@ -57,6 +59,8 @@ export const ModelsSettings: React.FC = () => {
     deleteModel,
     rescanLocalModels,
   } = useModelStore();
+  const { settings } = useSettings();
+  const transcriptionProvider = settings?.transcription_provider;
 
   // click outside handler for language dropdown
   useEffect(() => {
@@ -114,7 +118,8 @@ export const ModelsSettings: React.FC = () => {
     if (!model?.is_downloaded) {
       return "downloadable";
     }
-    if (modelId === currentModel) {
+    // Local cards are only Active while the local backend is the one in use.
+    if (modelId === currentModel && transcriptionProvider !== "openrouter") {
       return "active";
     }
     return "available";
@@ -247,6 +252,11 @@ export const ModelsSettings: React.FC = () => {
           {t("settings.models.description")}
         </p>
       </div>
+
+      {/* OpenRouter transcription: cloud source plus its searchable model
+          picker. The local search and filters below apply to local models only,
+          so this tile sits outside them. */}
+      <OpenRouterTranscriptionCard />
 
       {/* Search bar — filter the catalog by name or description */}
       <div className="relative">

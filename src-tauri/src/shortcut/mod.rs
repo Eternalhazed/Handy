@@ -1082,6 +1082,7 @@ pub fn change_post_process_api_key_setting(
     provider_id: String,
     api_key: String,
 ) -> Result<(), String> {
+    let _settings_guard = settings::lock_api_key_settings();
     let mut settings = settings::get_settings(&app);
     validate_provider_exists(&settings, &provider_id)?;
     settings.post_process_api_keys.insert(provider_id, api_key);

@@ -152,7 +152,11 @@
       "translate": "Превод на английски",
       "streaming": "Показва транскрипция на живо, докато говорите"
     },
-    "legacy": "Наследен"
+    "legacy": "Наследен",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "Не е настроено",
+    "use": "Използване",
+    "configure": "Настройване"
   },
   "settings": {
     "modelSettings": {
@@ -227,6 +231,23 @@
       "rescan": {
         "label": "Сканиране отново",
         "tooltip": "Сканиране отново за модели, добавени в папката с модели или кеша на Hugging Face извън Handy"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "Транскрибирайте онлайн без локален модел за реч.",
+        "use": "Използване",
+        "activating": "Превключване...",
+        "modelPlaceholder": "Търсене на модели за транскрипция…",
+        "refresh": "Опресняване на списъка с модели",
+        "noModels": "Не бяха върнати модели за транскрипция. Опитайте да опресните.",
+        "apiKeyLabel": "API ключ на OpenRouter (споделен с постобработката)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "API ключът е настроен",
+        "changeKey": "Промяна",
+        "privacyNote": "Записаният звук се изпраща до OpenRouter и доставчика, обслужващ избрания модел. Необходими са интернет връзка и API кредити.",
+        "notInCatalog": "Запазеният модел не е в текущия каталог.",
+        "section": "Онлайн транскрипция",
+        "keyMissing": "Още няма API ключ"
       }
     },
     "sound": {

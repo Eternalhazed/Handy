@@ -28,6 +28,11 @@ export const AdvancedSettings: React.FC = () => {
   const { t } = useTranslation();
   const { getSetting } = useSettings();
   const experimentalEnabled = getSetting("experimental_enabled") || false;
+  // Local-engine controls (unload timing, inference acceleration) stay stored
+  // while OpenRouter is active, but they cannot affect anything until a local
+  // model is in use again — so they are not shown as if they applied.
+  const isCloud =
+    (getSetting("transcription_provider") ?? "local") === "openrouter";
 
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
@@ -36,7 +41,9 @@ export const AdvancedSettings: React.FC = () => {
         <AutostartToggle descriptionMode="tooltip" grouped={true} />
         <ShowTrayIcon descriptionMode="tooltip" grouped={true} />
         <ShowOverlay descriptionMode="tooltip" grouped={true} />
-        <ModelUnloadTimeoutSetting descriptionMode="tooltip" grouped={true} />
+        {!isCloud && (
+          <ModelUnloadTimeoutSetting descriptionMode="tooltip" grouped={true} />
+        )}
         <ExperimentalToggle descriptionMode="tooltip" grouped={true} />
       </SettingsGroup>
 
@@ -69,7 +76,9 @@ export const AdvancedSettings: React.FC = () => {
             descriptionMode="tooltip"
             grouped={true}
           />
-          <AccelerationSelector descriptionMode="tooltip" grouped={true} />
+          {!isCloud && (
+            <AccelerationSelector descriptionMode="tooltip" grouped={true} />
+          )}
           <LazyStreamClose descriptionMode="tooltip" grouped={true} />
           <VadBackendSelector descriptionMode="tooltip" grouped={true} />
         </SettingsGroup>

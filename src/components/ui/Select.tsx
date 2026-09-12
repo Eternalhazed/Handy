@@ -4,6 +4,7 @@ import CreatableSelect from "react-select/creatable";
 import type {
   ActionMeta,
   Props as ReactSelectProps,
+  SelectInstance,
   SingleValue,
   StylesConfig,
 } from "react-select";
@@ -23,8 +24,19 @@ type BaseProps = {
   isClearable?: boolean;
   onChange: (value: string | null, action: ActionMeta<SelectOption>) => void;
   onBlur?: () => void;
+  selectRef?: React.Ref<SelectInstance<SelectOption, false>>;
   className?: string;
+  /** Control density. `sm` is a compact 32px control; defaults to `md` (40px). */
+  size?: "md" | "sm";
   formatCreateLabel?: (input: string) => string;
+  /**
+   * Controlled menu visibility. Omit it (and the two handlers) and the menu
+   * opens/closes itself as usual — e.g. a card surface that opens the picker
+   * on click passes all three; every other caller passes none.
+   */
+  menuIsOpen?: boolean;
+  onMenuOpen?: () => void;
+  onMenuClose?: () => void;
 };
 
 type CreatableProps = {
@@ -119,6 +131,33 @@ const selectStyles: StylesConfig<SelectOption, false> = {
   }),
 };
 
+/**
+ * Compact 32px variant, for cards that stack several controls. Only the
+ * density-related properties are overridden; everything else is inherited from
+ * [`selectStyles`] so the two sizes cannot drift apart.
+ */
+const compactSelectStyles: StylesConfig<SelectOption, false> = {
+  ...selectStyles,
+  control: (base, state) => ({
+    ...selectStyles.control!(base, state),
+    minHeight: 32,
+    fontSize: "0.8125rem",
+  }),
+  valueContainer: (base, state) => ({
+    ...selectStyles.valueContainer!(base, state),
+    paddingInline: 8,
+    paddingBlock: 2,
+  }),
+  dropdownIndicator: (base, state) => ({
+    ...selectStyles.dropdownIndicator!(base, state),
+    padding: 4,
+  }),
+  clearIndicator: (base, state) => ({
+    ...selectStyles.clearIndicator!(base, state),
+    padding: 4,
+  }),
+};
+
 export const Select: React.FC<SelectProps> = React.memo(
   ({
     value,
@@ -129,7 +168,12 @@ export const Select: React.FC<SelectProps> = React.memo(
     isClearable = true,
     onChange,
     onBlur,
+    selectRef,
     className = "",
+    size = "md",
+    menuIsOpen,
+    onMenuOpen,
+    onMenuClose,
     isCreatable,
     formatCreateLabel,
     onCreateOption,
@@ -159,12 +203,16 @@ export const Select: React.FC<SelectProps> = React.memo(
       isLoading,
       onBlur,
       isClearable,
-      styles: selectStyles,
+      menuIsOpen,
+      onMenuOpen,
+      onMenuClose,
+      styles: size === "sm" ? compactSelectStyles : selectStyles,
     };
 
     if (isCreatable) {
       return (
         <CreatableSelect<SelectOption, false>
+          ref={selectRef}
           {...sharedProps}
           onCreateOption={onCreateOption}
           formatCreateLabel={formatCreateLabel}
@@ -172,7 +220,9 @@ export const Select: React.FC<SelectProps> = React.memo(
       );
     }
 
-    return <SelectComponent<SelectOption, false> {...sharedProps} />;
+    return (
+      <SelectComponent<SelectOption, false> ref={selectRef} {...sharedProps} />
+    );
   },
 );
 

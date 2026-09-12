@@ -13,6 +13,7 @@ mod input;
 mod llm_client;
 mod managers;
 mod memory;
+mod openrouter_stt;
 mod overlay;
 mod paste_tx;
 pub mod portable;
@@ -46,7 +47,7 @@ use tauri::{AppHandle, Emitter, Listener, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_log::{Builder as LogBuilder, RotationStrategy, Target, TargetKind};
 
-use crate::settings::get_settings;
+use crate::settings::{get_settings, TranscriptionProvider};
 
 // Global atomic to store the file log level filter
 // We use u8 to store the log::LevelFilter as a number
@@ -162,12 +163,16 @@ fn should_force_show_permissions_window(app: &AppHandle) -> bool {
     #[cfg(target_os = "windows")]
     {
         let model_manager = app.state::<Arc<ModelManager>>();
+        let settings = get_settings(app);
         let has_downloaded_models = model_manager
             .get_available_models()
             .iter()
             .any(|model| model.is_downloaded);
 
-        if !has_downloaded_models {
+        // A configured OpenRouter selection is a usable transcription setup even
+        // with no local model on disk; only unconfigured setups have nothing to
+        // transcribe with yet.
+        if !settings.transcription_configured(has_downloaded_models) {
             return false;
         }
 
@@ -324,10 +329,6 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             }
             id if id.starts_with("model_select:") => {
                 let model_id = id.strip_prefix("model_select:").unwrap().to_string();
-                let current_model = settings::get_settings(app).selected_model;
-                if model_id == current_model {
-                    return;
-                }
                 let app_clone = app.clone();
                 std::thread::spawn(move || {
                     match commands::models::switch_active_model(&app_clone, &model_id) {
@@ -336,6 +337,34 @@ fn initialize_core_logic(app_handle: &AppHandle) {
                         }
                         Err(e) => {
                             log::error!("Failed to switch model via tray: {}", e);
+                        }
+                    }
+                    tray::update_tray_menu(&app_clone);
+                });
+            }
+            "openrouter_select" => {
+                let current = settings::get_settings(app);
+                let model_id = current.openrouter_transcription_model.clone();
+                if model_id.trim().is_empty() {
+                    // Nothing to activate yet; the settings page is where a model
+                    // gets chosen. (The item is normally disabled in this state.)
+                    log::warn!("No OpenRouter transcription model selected.");
+                    show_main_window(app);
+                    return;
+                }
+                let app_clone = app.clone();
+                std::thread::spawn(move || {
+                    match commands::models::apply_openrouter_transcription_model(
+                        &app_clone, &model_id,
+                    ) {
+                        Ok(()) => {
+                            log::info!(
+                                "Transcription switched to OpenRouter ({}) via tray.",
+                                model_id
+                            );
+                        }
+                        Err(e) => {
+                            log::error!("Failed to switch to OpenRouter via tray: {}", e);
                         }
                     }
                     tray::update_tray_menu(&app_clone);
@@ -531,11 +560,41 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
 
     let tm = app.state::<Arc<TranscriptionManager>>();
 
-    let model_id = args
-        .model
-        .clone()
-        .unwrap_or_else(|| get_settings(app).selected_model);
-    if model_id.is_empty() {
+    let mut settings = get_settings(app);
+    // An explicit --model keeps its existing meaning: a local-model override for
+    // this invocation only. It never persists a provider change.
+    if args.model.is_some() {
+        settings.transcription_provider = TranscriptionProvider::Local;
+    }
+    let is_cloud = settings.transcription_provider == TranscriptionProvider::OpenRouter;
+
+    if is_cloud && args.device_index.is_some() {
+        eprintln!("error: --device-index selects a local compute device and cannot be used with OpenRouter");
+        return 2;
+    }
+
+    // The id the run reports: for a cloud run that is the OpenRouter selection
+    // (the remembered local id is not used at all), for a local run the
+    // per-invocation override or the saved local model.
+    let model_id = if is_cloud {
+        settings.openrouter_transcription_model.clone()
+    } else {
+        args.model
+            .clone()
+            .unwrap_or_else(|| settings.selected_model.clone())
+    };
+    if is_cloud {
+        if settings.openrouter_transcription_model.trim().is_empty() {
+            eprintln!("error: no OpenRouter transcription model selected (pick one in the app)");
+            return 2;
+        }
+        if !settings.openrouter_transcription_ready() {
+            eprintln!(
+                "error: OpenRouter transcription needs an API key (set it in Settings → Models)"
+            );
+            return 2;
+        }
+    } else if model_id.is_empty() {
         eprintln!("error: no model selected (pass --model or pick one in the app)");
         return 2;
     }
@@ -544,19 +603,32 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
     // index (transcribe-cpp / whisper-family models only; not persisted). Omit it
     // to use the persisted accelerator setting.
     let device_index = args.device_index;
-    let requested_device = match device_index {
-        Some(idx) => format!("index {}", idx),
-        None => "settings".to_string(),
+    let requested_device = if is_cloud {
+        "openrouter".to_string()
+    } else {
+        match device_index {
+            Some(idx) => format!("index {}", idx),
+            None => "settings".to_string(),
+        }
     };
 
-    // Cold load (timed).
+    // Cold load (timed). Cloud runs skip it entirely: they never touch the local
+    // engine, its backend or the compute-device registry.
     let load_start = Instant::now();
-    if let Err(e) = tm.load_model_with_device(&model_id, device_index) {
-        eprintln!("error: load_model('{}') failed: {}", model_id, e);
-        return 1;
-    }
-    let load_ms = load_start.elapsed().as_millis() as u64;
-    let bound_backend = tm.current_backend();
+    let bound_backend = if is_cloud {
+        Some("openrouter".to_string())
+    } else {
+        if let Err(e) = tm.load_model_with_device(&model_id, device_index) {
+            eprintln!("error: load_model('{}') failed: {}", model_id, e);
+            return 1;
+        }
+        tm.current_backend()
+    };
+    let load_ms = if is_cloud {
+        0
+    } else {
+        load_start.elapsed().as_millis() as u64
+    };
 
     let runs = args.repeat.unwrap_or(1).max(1);
     let mut times_ms: Vec<u64> = Vec::new();
@@ -565,14 +637,21 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
         // If the model's unload-timeout is "Immediately", transcribe() unloads
         // the engine after each run; reload (untimed) so repeats keep working
         // and the inference timing below stays clean.
-        if !tm.is_model_loaded() {
+        if !is_cloud && !tm.is_model_loaded() {
             if let Err(e) = tm.load_model_with_device(&model_id, device_index) {
                 eprintln!("error: reload before run {} failed: {}", i + 1, e);
                 return 1;
             }
         }
         let t = Instant::now();
-        match tm.transcribe(samples.clone()) {
+        // This worker thread is a plain OS thread, so the async dispatcher is
+        // driven with block_on here — never from inside a runtime worker.
+        match tauri::async_runtime::block_on(crate::actions::transcribe_audio(
+            app,
+            samples.clone(),
+            &settings,
+            false,
+        )) {
             Ok(out) => text = out,
             Err(e) => {
                 eprintln!("error: transcribe failed: {}", e);
@@ -732,6 +811,8 @@ pub fn run(cli_args: CliArgs) {
             commands::models::delete_model,
             commands::models::cancel_download,
             commands::models::set_active_model,
+            commands::models::fetch_openrouter_transcription_models,
+            commands::models::select_openrouter_transcription_model,
             commands::models::get_current_model,
             commands::models::get_transcription_model_status,
             commands::models::is_model_loading,

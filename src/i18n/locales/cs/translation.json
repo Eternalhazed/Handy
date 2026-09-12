@@ -152,7 +152,11 @@
     },
     "cancel": "Zrušit",
     "cancelDownload": "Zrušit stahování",
-    "legacy": "Zastaralé"
+    "legacy": "Zastaralé",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "Není nastaveno",
+    "use": "Použít",
+    "configure": "Nastavit"
   },
   "settings": {
     "modelSettings": {
@@ -176,6 +180,23 @@
       "rescan": {
         "label": "Znovu prohledat",
         "tooltip": "Znovu prohledat modely přidané do složky modelů nebo mezipaměti Hugging Face mimo Handy"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "Přepisovat online bez lokálního modelu řeči.",
+        "use": "Použít",
+        "activating": "Přepínání…",
+        "modelPlaceholder": "Hledat modely přepisu…",
+        "refresh": "Obnovit seznam modelů",
+        "noModels": "Nebyly vráceny žádné modely přepisu. Zkuste obnovit seznam.",
+        "apiKeyLabel": "API klíč OpenRouter (sdílený s následným zpracováním)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "API klíč je nastaven",
+        "changeKey": "Změnit",
+        "privacyNote": "Nahraný zvuk se odesílá do OpenRouter a poskytovateli, který obsluhuje vybraný model. Vyžaduje připojení k internetu a kredity API.",
+        "notInCatalog": "Uložený model není v aktuálním katalogu.",
+        "section": "Online přepis",
+        "keyMissing": "Zatím žádný API klíč"
       }
     },
     "general": {

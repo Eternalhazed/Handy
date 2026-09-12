@@ -152,7 +152,11 @@
       "translate": "翻譯為英語",
       "streaming": "在您說話時即時顯示轉錄"
     },
-    "legacy": "舊版"
+    "legacy": "舊版",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "未設定",
+    "use": "使用",
+    "configure": "設定"
   },
   "settings": {
     "modelSettings": {
@@ -227,6 +231,23 @@
       "rescan": {
         "label": "重新掃描",
         "tooltip": "重新掃描在 Handy 之外新增到模型資料夾或 Hugging Face 快取中的模型"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "無需本機語音模型，即可線上轉錄。",
+        "use": "使用",
+        "activating": "切換中...",
+        "modelPlaceholder": "搜尋轉錄模型…",
+        "refresh": "重新整理模型清單",
+        "noModels": "未傳回任何轉錄模型。請嘗試重新整理。",
+        "apiKeyLabel": "OpenRouter API 金鑰（與後處理共用）",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "API 金鑰已設定",
+        "changeKey": "變更",
+        "privacyNote": "錄製的音訊會傳送至 OpenRouter 以及提供所選模型的供應商。需要網路連線與 API 額度。",
+        "notInCatalog": "已儲存的模型不在目前目錄中。",
+        "section": "線上轉錄",
+        "keyMissing": "尚未設定 API 金鑰"
       }
     },
     "sound": {

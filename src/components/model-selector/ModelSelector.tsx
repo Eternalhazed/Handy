@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { commands } from "@/bindings";
 import { getTranslatedModelName } from "../../lib/utils/modelTranslation";
 import { useModelStore } from "../../stores/modelStore";
+import { useSettings } from "../../hooks/useSettings";
 import ModelStatusButton from "./ModelStatusButton";
 import ModelDropdown from "./ModelDropdown";
 import DownloadProgressDisplay from "./DownloadProgressDisplay";
@@ -22,9 +23,14 @@ type ModelStatus =
 
 interface ModelSelectorProps {
   onError?: (error: string) => void;
+  /** Open the Models settings section (for first-time OpenRouter setup). */
+  onOpenModels?: () => void;
 }
 
-const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
+const ModelSelector: React.FC<ModelSelectorProps> = ({
+  onError,
+  onOpenModels,
+}) => {
   const { t } = useTranslation();
   const {
     models,
@@ -35,6 +41,18 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
     extractingModels,
     selectModel,
   } = useModelStore();
+  const { settings } = useSettings();
+
+  // OpenRouter is a separate backend: while it is active nothing local is
+  // loaded, so its status must never be reported as a local load state.
+  const cloudModel = settings?.openrouter_transcription_model ?? "";
+  const isCloud = settings?.transcription_provider === "openrouter";
+  // Ready = a saved model plus a key, independent of which backend is active:
+  // that is what makes the switcher row able to activate cloud from a local
+  // session instead of only linking to the Models page.
+  const cloudReady =
+    cloudModel.trim().length > 0 &&
+    (settings?.post_process_api_keys?.openrouter ?? "").trim().length > 0;
 
   const [modelStatus, setModelStatus] = useState<ModelStatus>("unloaded");
   const [modelError, setModelError] = useState<string | null>(null);
@@ -49,6 +67,11 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
   // Check model status when currentModel changes
   useEffect(() => {
     const checkStatus = async () => {
+      if (isCloud) {
+        // The cloud selection has no local engine to report on; the render path
+        // derives its own status.
+        return;
+      }
       if (currentModel) {
         try {
           const statusResult = await commands.getTranscriptionModelStatus();
@@ -66,7 +89,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
       }
     };
     checkStatus();
-  }, [currentModel]);
+  }, [currentModel, isCloud]);
 
   useEffect(() => {
     // Listen for model loading lifecycle events
@@ -101,6 +124,9 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
     const downloadCompleteUnlisten = listen<string>(
       "model-download-complete",
       (event) => {
+        // A finished download never changes the active backend: while OpenRouter
+        // is running, the cloud selection stays.
+        if (isCloud) return;
         const modelId = event.payload;
         setTimeout(async () => {
           try {
@@ -138,7 +164,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
       modelStateUnlisten.then((fn) => fn());
       downloadCompleteUnlisten.then((fn) => fn());
     };
-  }, [selectModel]);
+  }, [selectModel, isCloud]);
 
   const handleModelSelect = async (modelId: string) => {
     setPendingModelId(modelId);
@@ -153,7 +179,38 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
     }
   };
 
+  /**
+   * OpenRouter row: activate the saved cloud selection when it is ready, and
+   * otherwise send the user to the Models page where a model can be chosen.
+   */
+  const handleCloudSelect = async () => {
+    setShowModelDropdown(false);
+    if (isCloud || !cloudReady) {
+      onOpenModels?.();
+      return;
+    }
+
+    setModelError(null);
+    const result =
+      await commands.selectOpenrouterTranscriptionModel(cloudModel);
+    if (result.status === "error") {
+      setModelError(result.error);
+      onError?.(result.error);
+    }
+  };
+
   const getModelDisplayText = (): string => {
+    if (isCloud) {
+      // A rejected switch must stay visible: this branch has no local load state
+      // to fall back on, so the failure is shown in place of the model.
+      if (modelError) return modelError;
+      // Cloud shows the saved model rather than any local load state, and is
+      // never presented as online/healthy from configuration alone.
+      return cloudModel.trim().length > 0
+        ? t("modelSelector.openrouter", { model: cloudModel })
+        : t("modelSelector.openrouterNotConfigured");
+    }
+
     const verifyingKeys = Object.keys(verifyingModels);
     if (verifyingKeys.length > 0) {
       if (verifyingKeys.length === 1) {
@@ -236,6 +293,12 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
 
   // Derive display status from model status + store state
   const getDisplayStatus = (): ModelStatus => {
+    if (isCloud) {
+      // Neutral while configured, error-coloured only while unusable — never
+      // the local "ready" dot, which would claim a loaded local engine.
+      if (modelError) return "error";
+      return cloudReady ? "unloaded" : "none";
+    }
     if (Object.keys(verifyingModels).length > 0) return "verifying";
     if (Object.keys(extractingModels).length > 0) return "extracting";
     if (Object.keys(downloadProgress).length > 0) return "downloading";
@@ -258,7 +321,11 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
           <ModelDropdown
             models={models}
             currentModelId={displayModelId}
+            isCloud={isCloud}
+            cloudConfigured={cloudReady}
+            cloudModel={cloudModel}
             onModelSelect={handleModelSelect}
+            onCloudSelect={() => void handleCloudSelect()}
           />
         )}
       </div>

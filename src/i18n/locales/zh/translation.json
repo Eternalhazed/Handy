@@ -152,7 +152,11 @@
     },
     "cancel": "取消",
     "cancelDownload": "取消下载",
-    "legacy": "旧版"
+    "legacy": "旧版",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "未设置",
+    "use": "使用",
+    "configure": "设置"
   },
   "settings": {
     "modelSettings": {
@@ -176,6 +180,23 @@
       "rescan": {
         "label": "重新扫描",
         "tooltip": "重新扫描在 Handy 之外添加到模型文件夹或 Hugging Face 缓存中的模型"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "无需本地语音模型，在线转录。",
+        "use": "使用",
+        "activating": "切换中...",
+        "modelPlaceholder": "搜索转录模型…",
+        "refresh": "刷新模型列表",
+        "noModels": "未返回任何转录模型。请尝试刷新。",
+        "apiKeyLabel": "OpenRouter API 密钥（与后处理共享）",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "API 密钥已配置",
+        "changeKey": "更改",
+        "privacyNote": "录制的音频会发送至 OpenRouter 以及提供所选模型的提供商。需要互联网连接和 API 额度。",
+        "notInCatalog": "已保存的模型不在当前目录中。",
+        "section": "在线转写",
+        "keyMissing": "尚未设置 API 密钥"
       }
     },
     "general": {

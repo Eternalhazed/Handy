@@ -152,7 +152,11 @@
       "translate": "Översätt till engelska",
       "streaming": "Visar transkription i realtid medan du talar"
     },
-    "legacy": "Äldre"
+    "legacy": "Äldre",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "Inte konfigurerad",
+    "use": "Använd",
+    "configure": "Konfigurera"
   },
   "settings": {
     "modelSettings": {
@@ -227,6 +231,23 @@
       "rescan": {
         "label": "Skanna om",
         "tooltip": "Skanna om efter modeller som lagts till i modellmappen eller Hugging Face-cachen utanför Handy"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "Transkribera online utan en lokal talmodell.",
+        "use": "Använd",
+        "activating": "Byter…",
+        "modelPlaceholder": "Sök transkriptionsmodeller…",
+        "refresh": "Uppdatera modellistan",
+        "noModels": "Inga transkriptionsmodeller returnerades. Försök uppdatera listan.",
+        "apiKeyLabel": "API-nyckel för OpenRouter (delas med efterbearbetning)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "API-nyckel konfigurerad",
+        "changeKey": "Ändra",
+        "privacyNote": "Inspelat ljud skickas till OpenRouter och den leverantör som tillhandahåller den valda modellen. Kräver internetanslutning och API-krediter.",
+        "notInCatalog": "Den sparade modellen finns inte i den aktuella katalogen.",
+        "section": "Onlinetranskribering",
+        "keyMissing": "Ingen API-nyckel ännu"
       }
     },
     "sound": {

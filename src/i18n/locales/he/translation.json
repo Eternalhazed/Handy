@@ -152,7 +152,11 @@
       "translate": "תרגם לאנגלית",
       "streaming": "מציג תמלול חי תוך כדי דיבור"
     },
-    "legacy": "מדור קודם"
+    "legacy": "מדור קודם",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "לא הוגדר",
+    "use": "השתמש",
+    "configure": "הגדר"
   },
   "settings": {
     "modelSettings": {
@@ -227,6 +231,23 @@
       "rescan": {
         "label": "סריקה מחדש",
         "tooltip": "סריקה מחדש לאיתור מודלים שנוספו לתיקיית המודלים או למטמון של Hugging Face מחוץ ל-Handy"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "תמלול מקוון ללא מודל דיבור מקומי.",
+        "use": "השתמש",
+        "activating": "מחליף...",
+        "modelPlaceholder": "חיפוש מודלי תמלול…",
+        "refresh": "רענון רשימת המודלים",
+        "noModels": "לא הוחזרו מודלי תמלול. נסה לרענן.",
+        "apiKeyLabel": "מפתח API של OpenRouter (משותף עם עיבוד משלים)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "מפתח API הוגדר",
+        "changeKey": "שנה",
+        "privacyNote": "השמע המוקלט נשלח ל-OpenRouter ולספק שמגיש את המודל הנבחר, ולשם כך נדרשים חיבור לאינטרנט וקרדיטים ב-API.",
+        "notInCatalog": "המודל השמור אינו בקטלוג הנוכחי.",
+        "section": "תמלול מקוון",
+        "keyMissing": "עדיין אין מפתח API"
       }
     },
     "sound": {

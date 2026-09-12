@@ -152,7 +152,11 @@
     },
     "cancel": "Abbrechen",
     "cancelDownload": "Download abbrechen",
-    "legacy": "Veraltet"
+    "legacy": "Veraltet",
+    "openrouter": "OpenRouter · {{model}}",
+    "openrouterNotConfigured": "Nicht eingerichtet",
+    "use": "Verwenden",
+    "configure": "Einrichten"
   },
   "settings": {
     "modelSettings": {
@@ -176,6 +180,23 @@
       "rescan": {
         "label": "Neu scannen",
         "tooltip": "Erneut nach Modellen scannen, die außerhalb von Handy zum Modellordner oder Hugging-Face-Cache hinzugefügt wurden"
+      },
+      "openrouter": {
+        "title": "OpenRouter",
+        "description": "Online transkribieren ohne lokales Sprachmodell.",
+        "use": "Verwenden",
+        "activating": "Wechseln...",
+        "modelPlaceholder": "Transkriptionsmodelle suchen…",
+        "refresh": "Modellliste aktualisieren",
+        "noModels": "Es wurden keine Transkriptionsmodelle zurückgegeben. Versuche, die Liste zu aktualisieren.",
+        "apiKeyLabel": "OpenRouter-API-Schlüssel (wird auch für die Nachbearbeitung verwendet)",
+        "apiKeyPlaceholder": "sk-or-…",
+        "keyConfigured": "API-Schlüssel konfiguriert",
+        "changeKey": "Ändern",
+        "privacyNote": "Aufgenommenes Audio wird an OpenRouter und den Anbieter gesendet, der das ausgewählte Modell bereitstellt. Erfordert eine Internetverbindung und API-Guthaben.",
+        "notInCatalog": "Das gespeicherte Modell ist nicht im aktuellen Katalog enthalten.",
+        "section": "Online-Transkription",
+        "keyMissing": "Noch kein API-Schlüssel"
       }
     },
     "general": {

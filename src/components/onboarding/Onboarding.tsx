@@ -6,6 +6,7 @@ import type { ModelInfo } from "@/bindings";
 import type { ModelCardStatus } from "./ModelCard";
 import ModelCard, { isLegacySource } from "./ModelCard";
 import HandyTextLogo from "../icons/HandyTextLogo";
+import { OpenRouterTranscriptionCard } from "../settings/models/OpenRouterTranscriptionCard";
 import { useModelStore } from "../../stores/modelStore";
 
 interface OnboardingProps {
@@ -170,6 +171,14 @@ const Onboarding: React.FC<OnboardingProps> = ({
 
       <div className="max-w-[600px] w-full mx-auto text-center flex-1 flex flex-col min-h-0">
         <div className="space-y-6 pb-6">
+          {/* Cloud transcription is a complete first-run setup on its own: the
+              tile activates without any local model download. Debug previews
+              never render it — it writes the shared key and can switch the
+              backend, and previews must stay inert. */}
+          {!preview && (
+            <OpenRouterTranscriptionCard onActivated={onModelSelected} />
+          )}
+
           {models.some((m: ModelInfo) => m.is_downloaded) && (
             <div className="space-y-3">
               <div className="text-left">

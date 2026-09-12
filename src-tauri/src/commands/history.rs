@@ -1,10 +1,12 @@
-use crate::actions::process_transcription_output;
+use crate::actions::{process_transcription_output, transcribe_audio};
 use crate::managers::{
+    audio::AudioRecordingManager,
     history::{HistoryManager, PaginatedHistory},
     transcription::TranscriptionManager,
 };
+use crate::settings::{get_settings, TranscriptionProvider};
 use std::sync::Arc;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
 #[specta::specta]
@@ -67,6 +69,17 @@ pub async fn retry_history_entry_transcription(
     transcription_manager: State<'_, Arc<TranscriptionManager>>,
     id: i64,
 ) -> Result<(), String> {
+    // A retry re-runs one recording through the *current* backend, so it must
+    // not interleave with a dictation or another operation. The gate is taken
+    // first so the recording check below cannot go stale (see
+    // `commands/models.rs::switch_active_model`).
+    let Some(_operation_guard) = transcription_manager.try_acquire_operation() else {
+        return Err("Transcription is in progress".to_string());
+    };
+    if app.state::<Arc<AudioRecordingManager>>().is_recording() {
+        return Err("Cannot retry while recording".to_string());
+    }
+
     let entry = history_manager
         .get_entry_by_id(id)
         .await
@@ -81,20 +94,28 @@ pub async fn retry_history_entry_transcription(
         return Err("Recording has no audio samples".to_string());
     }
 
-    transcription_manager.initiate_model_load();
+    // One snapshot for the whole retry: a provider or model change during the
+    // request cannot switch the backend halfway through.
+    let settings = get_settings(&app);
+    if settings.transcription_provider == TranscriptionProvider::Local {
+        transcription_manager.initiate_model_load();
+    }
 
-    let tm = Arc::clone(&transcription_manager);
-    let transcription = tauri::async_runtime::spawn_blocking(move || tm.transcribe(samples))
+    let transcription = transcribe_audio(&app, samples, &settings, false)
         .await
-        .map_err(|e| format!("Transcription task panicked: {}", e))?
         .map_err(|e| e.to_string())?;
 
     if transcription.is_empty() {
         return Err("Recording contains no speech".to_string());
     }
 
-    let processed =
-        process_transcription_output(&app, &transcription, entry.post_process_requested).await;
+    let processed = process_transcription_output(
+        &app,
+        &settings,
+        &transcription,
+        entry.post_process_requested,
+    )
+    .await;
     history_manager
         .update_transcription(
             id,

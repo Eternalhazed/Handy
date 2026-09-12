@@ -5,9 +5,13 @@ use crate::audio_toolkit::{is_microphone_access_denied, is_no_input_device_error
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::history::HistoryManager;
 use crate::managers::model::ModelManager;
-use crate::managers::transcription::StreamWorkKind;
-use crate::managers::transcription::TranscriptionManager;
-use crate::settings::{get_settings, AppSettings, OverlayStyle, APPLE_INTELLIGENCE_PROVIDER_ID};
+use crate::managers::transcription::{
+    post_process_transcription_text, resolve_output_language_evidence, StreamWorkKind,
+    TranscriptionManager,
+};
+use crate::settings::{
+    get_settings, AppSettings, OverlayStyle, TranscriptionProvider, APPLE_INTELLIGENCE_PROVIDER_ID,
+};
 use crate::shortcut;
 use crate::tray::{set_tray_state, TrayIconState};
 use crate::utils::{
@@ -403,7 +407,15 @@ pub(crate) struct ProcessedTranscription {
 /// paths apply (see [`crate::managers::model::effective_language`]). Post-processing
 /// resolves it independently so it agrees with the language the transcription ran
 /// in, without threading a value through the pipeline.
+///
+/// OpenRouter sends the intent itself as its language hint (there is no local
+/// capability list to coerce against), so cloud runs keep the intent verbatim —
+/// which is also what keeps `zh-Hans`/`zh-Hant` output conversion working.
 fn resolve_effective_language(app: &AppHandle, settings: &AppSettings) -> String {
+    if settings.transcription_provider == TranscriptionProvider::OpenRouter {
+        return settings.selected_language.clone();
+    }
+
     let tm = app.state::<Arc<TranscriptionManager>>();
     let model_manager = app.state::<Arc<ModelManager>>();
     let active_model = tm
@@ -419,20 +431,75 @@ fn resolve_effective_language(app: &AppHandle, settings: &AppSettings) -> String
     }
 }
 
+/// Run one transcription through the backend this operation selected.
+///
+/// `settings` is the caller's snapshot, so provider, model, language and API key
+/// cannot change under a running request. `finalize_live_stream` makes the local
+/// branch consume an active live stream before falling back to batch
+/// transcription; it is only meaningful for a dictation that was just stopped.
+pub(crate) async fn transcribe_audio(
+    app: &AppHandle,
+    samples: Vec<f32>,
+    settings: &AppSettings,
+    finalize_live_stream: bool,
+) -> anyhow::Result<String> {
+    match settings.transcription_provider {
+        TranscriptionProvider::OpenRouter => {
+            let raw = crate::openrouter_stt::transcribe(samples, settings).await?;
+
+            // A hosted model has no local capability list, so the run's language
+            // evidence is the hint that was actually sent. Custom words, filler
+            // removal and normalization still apply, exactly as for the local
+            // engines' output.
+            let hint = crate::openrouter_stt::language_hint(settings);
+            let evidence = resolve_output_language_evidence(settings, hint.as_deref(), &[], false);
+            Ok(post_process_transcription_text(
+                raw,
+                settings,
+                false,
+                &evidence,
+                &[],
+            ))
+        }
+        TranscriptionProvider::Local => {
+            let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
+            tauri::async_runtime::spawn_blocking(move || {
+                if finalize_live_stream {
+                    // A finalized stream with usable text wins. An empty result
+                    // (no active stream, produced nothing, or a finalize error
+                    // after the engine was returned) falls back to a full batch
+                    // transcription of the same audio. A finalize timeout is
+                    // surfaced instead — the worker may still hold the engine,
+                    // so a batch fallback would contend with it.
+                    match tm.finalize_stream() {
+                        Ok(Some(text)) if !text.trim().is_empty() => Ok(text),
+                        Ok(_) => tm.transcribe(samples),
+                        Err(err) => Err(err),
+                    }
+                } else {
+                    tm.transcribe(samples)
+                }
+            })
+            .await
+            .map_err(|e| anyhow::anyhow!("Transcription task panicked: {}", e))?
+        }
+    }
+}
+
 pub(crate) async fn process_transcription_output(
     app: &AppHandle,
+    settings: &AppSettings,
     transcription: &str,
     post_process: bool,
 ) -> ProcessedTranscription {
-    let settings = get_settings(app);
     let mut final_text = transcription.to_string();
     let mut post_processed_text: Option<String> = None;
     let mut post_process_prompt: Option<String> = None;
 
-    // Resolve the language the transcription actually ran in (the persisted
-    // intent coerced against the loaded model's capabilities) so OpenCC keys off
-    // the effective language rather than a possibly-stale intent.
-    let effective_language = resolve_effective_language(app, &settings);
+    // Resolve the language the transcription actually ran in so OpenCC keys off
+    // the effective language rather than a possibly-stale intent. Local models
+    // coerce the intent against their capabilities; cloud runs keep it verbatim.
+    let effective_language = resolve_effective_language(app, settings);
     if let Some(converted_text) =
         maybe_convert_chinese_variant(&effective_language, transcription).await
     {
@@ -440,7 +507,7 @@ pub(crate) async fn process_transcription_output(
     }
 
     if post_process {
-        if let Some(processed_text) = post_process_transcription(&settings, &final_text).await {
+        if let Some(processed_text) = post_process_transcription(settings, &final_text).await {
             post_processed_text = Some(processed_text.clone());
             final_text = processed_text;
 
@@ -474,9 +541,23 @@ impl ShortcutAction for TranscribeAction {
         let tm = app.state::<Arc<TranscriptionManager>>();
         let rm = app.state::<Arc<AudioRecordingManager>>();
 
+        // Serialize the whole operation (record → transcribe → output) against
+        // commands that would change the transcription backend mid-run — e.g. a
+        // history retry or switching to/from OpenRouter. Held until recording
+        // has actually started (see the end of this function), then released;
+        // those commands re-check the recorder while holding this same gate, so
+        // a dictation always finishes on the backend it was started with.
+        let Some(_operation_guard) = tm.try_acquire_operation() else {
+            warn!("Ignoring start request: a transcription operation is already in progress");
+            return;
+        };
+
         // Load ASR model and VAD model in parallel
         let kickoff_started = Instant::now();
-        tm.initiate_model_load();
+        let settings = get_settings(app);
+        if settings.transcription_provider == TranscriptionProvider::Local {
+            tm.initiate_model_load();
+        }
         let rm_clone = Arc::clone(&rm);
         std::thread::spawn(move || {
             if let Err(e) = rm_clone.preload_vad() {
@@ -492,7 +573,6 @@ impl ShortcutAction for TranscribeAction {
 
         // Get the microphone mode to determine audio feedback timing
         let plan_started = Instant::now();
-        let settings = get_settings(app);
         let is_always_on = settings.always_on_microphone;
 
         let selected_model_info = app
@@ -502,10 +582,15 @@ impl ShortcutAction for TranscribeAction {
         // Use the app-facing model capability as the single pre-recording source
         // for live streaming decisions. Unknown support is represented as false
         // until the model registry is updated by discovery or runtime load.
-        let model_supports_streaming = selected_model_info
-            .as_ref()
-            .map(|m| m.supports_streaming)
-            .unwrap_or(false);
+        // OpenRouter has no local stream to drive, so it always takes the batch
+        // path even when the remembered local model can stream — this also keeps
+        // the overlay on the compact pill instead of the live panel.
+        let model_supports_streaming = settings.transcription_provider
+            == TranscriptionProvider::Local
+            && selected_model_info
+                .as_ref()
+                .map(|m| m.supports_streaming)
+                .unwrap_or(false);
         let vad_policy = if !settings.vad_enabled {
             VadPolicy::Disabled
         } else if model_supports_streaming {
@@ -678,6 +763,25 @@ impl ShortcutAction for TranscribeAction {
                 binding_id
             );
 
+            // Wait for any command already holding the operation gate (history
+            // retry, provider switch) to finish before the recorder is stopped.
+            // The microphone keeps capturing until then, so a dictation is never
+            // truncated, and the gate stays held through transcription and
+            // output handling below — a backend change cannot slip in halfway.
+            let operation_gate = tm.operation_gate();
+            let _operation_guard = operation_gate.lock_owned().await;
+
+            // One settings snapshot for the whole operation: provider, model,
+            // language and API key cannot change under a running request.
+            //
+            // This is also the provider the recording was *started* with: while a
+            // recording is active, selecting a model or activating OpenRouter is
+            // rejected by the `is_recording` guard in those commands, and once the
+            // recorder stops they are rejected again by the operation gate this
+            // task holds. No start-time snapshot has to be threaded through.
+            let settings = get_settings(&ah);
+            let is_cloud = settings.transcription_provider == TranscriptionProvider::OpenRouter;
+
             let stop_recording_time = Instant::now();
             if let Some(samples) = rm.stop_recording(&binding_id, cancel_generation) {
                 debug!(
@@ -712,20 +816,23 @@ impl ShortcutAction for TranscribeAction {
                         crate::audio_toolkit::save_wav_file(&wav_path, &samples_for_wav)
                     });
 
-                    // Transcribe concurrently with WAV save. If a live stream was
-                    // running, finalize it and use its text (all audio was already
-                    // fed to the stream); otherwise batch-transcribe the samples.
+                    // Transcribe concurrently with WAV save, through whichever
+                    // backend this operation selected. A live stream is only ever
+                    // active for a local model.
                     let transcription_time = Instant::now();
-                    let transcription_result = match tm.finalize_stream() {
-                        // A finalized stream with usable text wins. An empty result
-                        // (no active stream, produced nothing, or a finalize error
-                        // after the engine was returned) falls back to a full batch
-                        // transcription of the same audio. A finalize timeout is
-                        // surfaced instead — the worker may still hold the engine,
-                        // so a batch fallback would contend with it.
-                        Ok(Some(text)) if !text.trim().is_empty() => Ok(text),
-                        Ok(_) => tm.transcribe(samples),
-                        Err(err) => Err(err),
+                    // Cloud requests are abortable, so they are polled against the
+                    // cancel flag: a cancelled or late response must never reach
+                    // the paste path. Native inference is not abortable — its
+                    // blocking task keeps the engine and the operation gate until
+                    // it finishes — so it is awaited to completion instead.
+                    let transcription_result = if is_cloud {
+                        complete_unless_cancelled(
+                            transcribe_audio(&ah, samples, &settings, true),
+                            || rm.was_cancelled_since(cancel_generation),
+                        )
+                        .await
+                    } else {
+                        Some(transcribe_audio(&ah, samples, &settings, true).await)
                     };
 
                     // Await WAV save and verify
@@ -752,6 +859,15 @@ impl ShortcutAction for TranscribeAction {
                         }
                     };
 
+                    // The WAV is already awaited above, so a cancelled request
+                    // never leaves a detached save behind.
+                    let Some(transcription_result) = transcription_result else {
+                        debug!("Transcription cancelled while waiting for the backend");
+                        utils::hide_recording_overlay(&ah);
+                        set_tray_state(&ah, TrayIconState::Idle);
+                        return;
+                    };
+
                     if rm.was_cancelled_since(cancel_generation) {
                         debug!("Transcription operation cancelled before output handling");
                         utils::hide_recording_overlay(&ah);
@@ -775,7 +891,12 @@ impl ShortcutAction for TranscribeAction {
                                 }
                             }
                             let Some(processed) = complete_unless_cancelled(
-                                process_transcription_output(&ah, &transcription, post_process),
+                                process_transcription_output(
+                                    &ah,
+                                    &settings,
+                                    &transcription,
+                                    post_process,
+                                ),
                                 || rm.was_cancelled_since(cancel_generation),
                             )
                             .await
