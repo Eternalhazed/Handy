@@ -1,8 +1,9 @@
 # Fork notes — OpenRouter transcription
 
-This checkout is a **local fork** of [Handy](https://github.com/cjpais/Handy) that adds
-OpenRouter's hosted speech-to-text as a second transcription backend, alongside the
-local models.
+This [public fork](https://github.com/Eternalhazed/Handy) of
+[Handy](https://github.com/cjpais/Handy) adds OpenRouter's hosted speech-to-text as
+a second transcription backend, alongside the local models. It is unofficial;
+upstream's MIT license and attribution are retained.
 
 It is a fork on purpose: upstream does not accept remote STT providers
 ([cjpais/Handy#886](https://github.com/cjpais/Handy/pull/886) — "This is a local only
@@ -20,16 +21,21 @@ upstream so merges stay boring.
 - **Client** (`src-tauri/src/openrouter_stt.rs`): keyless catalog discovery
   (`GET /api/v1/models?output_modalities=transcription`, filtered to audio→transcription),
   upload to `POST /api/v1/audio/transcriptions` as JSON + base64 16 kHz mono WAV.
-  Fixed URLs, one total budget per request (90 s), and retries **only** when the
-  provider did not process the upload (no response, 429, 5xx gateway) — see the
-  `UploadError::retryable` docs. A rejected or already-transcribed request is never
-  repeated, so a retry cannot bill twice.
+  Fixed URLs and a shared 90-second network deadline, starting after audio encoding.
+  At most three attempts, with 400 ms / 1200 ms backoff, for connection-establishment
+  failures and HTTP 429 only. All 5xx (including 503), ambiguous transport failures,
+  and malformed success responses are final. This is not an exactly-once or
+  no-double-billing guarantee; a manual History retry may resend processed audio.
 - **Dispatch** (`actions.rs::transcribe_audio`): one async entry point shared by
   dictation, history retry and the headless CLI. The cloud branch never loads the
   local engine; cleanup (custom words, fillers, normalization, Chinese variant
   conversion) runs on cloud output exactly as it does locally.
 - **Switching safety**: an operation gate on `TranscriptionManager` serializes
   record → transcribe → output against provider/model changes and history retries.
+  A separate short settings lock serializes shared API-key saves with cloud
+  activation, preventing that activation from overwriting a concurrent key edit.
+  It does not lock an in-flight transcription or make all legacy settings writers
+  transactional.
 - **UI**: one OpenRouter tile on the Models page (searchable picker over the live
   catalog, shared API key, Use), one row in the footer model switcher, one tray item,
   cloud state in General settings, and onboarding support without any local download.
@@ -41,6 +47,17 @@ The OpenRouter API key is the one already used for post-processing
 (`post_process_api_keys.openrouter`). Choosing an STT model never changes the
 post-processing provider, model, prompt or enable flag, and vice versa.
 
+## Branch and review workflow
+
+- `origin` remains `https://github.com/cjpais/Handy`; `fork` points at
+  `https://github.com/Eternalhazed/Handy`.
+- Keep `main` aligned with upstream. Develop and build on `openrouter-stt`.
+- [Fork PR #1](https://github.com/Eternalhazed/Handy/pull/1) is the review record.
+  Keep it unmerged while `main` is an upstream mirror; releases can target the
+  feature branch without merging it.
+- Do not publish personal settings, API keys, history, recordings, or portable
+  `Data/` directories with an artifact.
+
 ## Updating from upstream
 
 ```powershell
@@ -51,7 +68,7 @@ git merge origin/main               # resolve conflicts, then:
 bun install                         # only if package.json/lock changed
 cd src-tauri; cargo test --lib      # full local suite
 cd ..; bun run build; bun run lint
-bun run tauri build                 # the version you actually install
+# Package locally using the unsigned Windows command below.
 ```
 
 Prefer `git merge` over `git rebase` here: the branch is used daily, and merges keep
@@ -76,14 +93,39 @@ These upstream files carry fork changes, so expect conflicts here first:
 
 ### Checklist after a merge
 
-1. `cargo test --lib` (278+ tests, incl. 14 `openrouter_stt_*`).
-2. `bun run build` and `bun run lint`.
-3. Launch the built app: Models page tile renders and lists the live catalog; footer
-   shows `OpenRouter · <model>`; tray submenu has one OpenRouter entry.
-4. One real dictation through OpenRouter (paste + history row).
+1. `cargo test --lib`, `cargo fmt --check`, and `cargo clippy --lib --tests`.
+2. `bun run build`, `bun run lint`, and `bun run check:translations`.
+3. Launch an isolated portable build: exercise the Models tile, focused keyboard
+   search/Escape, footer source switch, local-to-cloud unload, restart/rescan
+   persistence, missing-key rejection, and narrow-window layout.
+4. Loopback tests cover upload encoding, response failures, retry counts, and
+   cancellation. Never infer recognition quality from those tests. Any additional
+   live dictation requires explicit approval of the model, audio, and call count.
+
+## Building an unsigned Windows candidate
+
+Keep the checked-in signing and updater configuration unchanged. Supply a
+build-only override instead (PowerShell):
+
+```powershell
+$env:CMAKE = 'C:\Program Files\CMake\bin\cmake.exe'
+$env:VULKAN_SDK = 'C:\VulkanSDK\1.4.357.0'
+bun run tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false,"windows":{"signCommand":null}}}'
+```
+
+This produces `src-tauri/target/release/bundle/nsis/Handy_0.9.6_x64-setup.exe`.
+It is unsigned and may trigger Windows SmartScreen. Building is not installation.
+Record the source commit and SHA-256 before distributing it.
+
+For isolated execution, place a sibling `portable` file containing exactly
+`Handy Portable Mode` next to the test executable. Its data and Hugging Face cache
+then live under sibling `Data/`. Do not copy a normal profile into this sandbox.
+An ordinary `cargo build` debug executable uses `devUrl` and needs the Vite server;
+`bun run tauri build --debug --no-bundle` or a release build embeds the frontend.
 
 ## Keeping updates out of the way of the updater
 
-The bundled auto-updater points at upstream releases. If it installs one, this feature
-disappears. Keep **Settings → Advanced → "Check for updates"** disabled in the fork;
-updates arrive through the merge workflow above instead.
+The bundled updater points at upstream releases. If it installs one, this feature
+disappears. In Debug settings (toggle visibility with `Ctrl+Shift+D` on Windows),
+disable **Check for Updates**. Do not manually install an upstream update from the
+footer. Updates to this fork arrive through the merge/build workflow above.

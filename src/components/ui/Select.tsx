@@ -4,6 +4,7 @@ import CreatableSelect from "react-select/creatable";
 import type {
   ActionMeta,
   Props as ReactSelectProps,
+  SelectInstance,
   SingleValue,
   StylesConfig,
 } from "react-select";
@@ -23,6 +24,7 @@ type BaseProps = {
   isClearable?: boolean;
   onChange: (value: string | null, action: ActionMeta<SelectOption>) => void;
   onBlur?: () => void;
+  selectRef?: React.Ref<SelectInstance<SelectOption, false>>;
   className?: string;
   /** Control density. `sm` is a compact 32px control; defaults to `md` (40px). */
   size?: "md" | "sm";
@@ -166,6 +168,7 @@ export const Select: React.FC<SelectProps> = React.memo(
     isClearable = true,
     onChange,
     onBlur,
+    selectRef,
     className = "",
     size = "md",
     menuIsOpen,
@@ -174,7 +177,7 @@ export const Select: React.FC<SelectProps> = React.memo(
     isCreatable,
     formatCreateLabel,
     onCreateOption,
-    }) => {
+  }) => {
     const selectValue = React.useMemo(() => {
       if (!value) return null;
       const existing = options.find((option) => option.value === value);
@@ -209,6 +212,7 @@ export const Select: React.FC<SelectProps> = React.memo(
     if (isCreatable) {
       return (
         <CreatableSelect<SelectOption, false>
+          ref={selectRef}
           {...sharedProps}
           onCreateOption={onCreateOption}
           formatCreateLabel={formatCreateLabel}
@@ -216,7 +220,9 @@ export const Select: React.FC<SelectProps> = React.memo(
       );
     }
 
-    return <SelectComponent<SelectOption, false> {...sharedProps} />;
+    return (
+      <SelectComponent<SelectOption, false> ref={selectRef} {...sharedProps} />
+    );
   },
 );
 

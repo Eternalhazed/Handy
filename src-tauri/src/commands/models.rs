@@ -249,6 +249,10 @@ pub fn apply_openrouter_transcription_model(app: &AppHandle, model_id: &str) -> 
         return Err("Select an OpenRouter transcription model first".to_string());
     }
 
+    // Both this full-snapshot write and key saves must hold the same short-lived
+    // lock from their first settings read through persistence. The operation
+    // gate alone cannot protect against key edits, which are allowed in flight.
+    let settings_guard = crate::settings::lock_api_key_settings();
     let settings = get_settings(app);
     let has_key = settings
         .post_process_api_keys
@@ -287,10 +291,8 @@ pub fn apply_openrouter_transcription_model(app: &AppHandle, model_id: &str) -> 
         return Err("Model load already in progress".to_string());
     };
 
-    // The readiness check above raced with key edits, which take no gate. Re-check
-    // against fresh settings before dropping the local engine: persisting
-    // provider=OpenRouter with a blank key would strand the user on an unusable
-    // backend after the engine they could have used is gone.
+    // Refresh unrelated settings after acquiring the model guards. Key edits
+    // remain excluded until this snapshot has been persisted.
     let mut settings = get_settings(app);
     let has_key = settings
         .post_process_api_keys
@@ -308,6 +310,7 @@ pub fn apply_openrouter_transcription_model(app: &AppHandle, model_id: &str) -> 
     settings.openrouter_transcription_model = model_id.to_string();
     settings.onboarding_completed = true;
     write_settings(app, settings);
+    drop(settings_guard);
 
     let _ = app.emit(
         "model-state-changed",

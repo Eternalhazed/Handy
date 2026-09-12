@@ -36,12 +36,12 @@ const MAX_TRANSCRIPTION_ATTEMPTS: usize = 3;
 /// Backoff before attempt 2 and attempt 3, clamped to the remaining budget.
 const RETRY_BACKOFF: [Duration; 2] = [Duration::from_millis(400), Duration::from_millis(1200)];
 
-/// A failed upload, classified by whether repeating it is safe.
+/// A failed upload, classified by the bounded retry policy.
 struct UploadError {
     message: String,
-    /// True only when the provider provably did not process the request — the
-    /// connection could not be established, or the request was refused before
-    /// any work started — so replaying it cannot double-bill or duplicate output.
+    /// Only connection-establishment failures and HTTP 429 are eligible. This
+    /// relies on the provider's rate-limit semantics, not an idempotency or
+    /// billing guarantee. Ambiguous transport failures and every 5xx are final.
     retryable: bool,
 }
 
@@ -138,8 +138,7 @@ async fn fetch_models_from(url: &str, timeout: Duration) -> Result<Vec<String>, 
 /// deadline.
 ///
 /// The deadline covers the whole exchange, so a slow response cannot take twice
-/// the configured time. Each failure carries whether the provider *provably*
-/// did not process the request, which is what makes a retry safe or not.
+/// the configured time. Each failure is classified under the retry policy.
 async fn exchange(
     context: &str,
     label: &str,
@@ -258,15 +257,13 @@ async fn transcribe_to(
     transcribe_with_budget(endpoint, samples, settings, TRANSCRIPTION_BUDGET).await
 }
 
-/// Upload the recording, retrying only failures that are provably safe to
-/// repeat, all inside one total budget.
+/// Upload the recording with bounded retries inside one total network budget.
 ///
-/// A retry may re-upload audio, so it happens only when the provider provably
-/// did not process the request: the connection could not be established, or the
-/// request was refused with 429/503 — see [`UploadError::retryable`]. Anything
-/// that leaves it unknown whether the audio was transcribed (a dropped
-/// connection after the body was sent, an edge 5xx, a missing or unusable
-/// response) is reported as final, because a second attempt could bill twice.
+/// A retry may re-upload audio. Only connection-establishment failures and HTTP
+/// 429 rate-limit rejections are retried; this is not an exactly-once or billing
+/// guarantee. Any ambiguous result (a dropped connection after sending, any 5xx
+/// including 503, or a missing/unusable response) is final because the audio may
+/// already have been processed. HTTP 503 does not establish otherwise for STT.
 /// When the retries are exhausted the error surfaces as usual, the recording is
 /// preserved, and History offers a manual retry.
 async fn transcribe_with_budget(
@@ -359,7 +356,7 @@ async fn transcribe_attempt(
     .await?;
 
     let parsed: Value = serde_json::from_slice(&body).map_err(|_| {
-        // The provider processed the request, so this response is final.
+        // Processing may have completed, so this unusable response is final.
         UploadError::fatal("OpenRouter returned a malformed transcription response")
     })?;
 
@@ -414,11 +411,9 @@ const TIMED_OUT: &str = "OpenRouter request timed out";
 /// Map a non-2xx status to an actionable message. The response body is never
 /// included: it can echo request data and would leak into logs and toasts.
 ///
-/// The status also decides whether a retry is allowed. Only a rate limit (429)
-/// and "service unavailable" (503) prove the provider refused the request
-/// without transcribing it. A 5xx from the edge or an internal error
-/// (500/502/504) cannot establish that, so replaying one could upload — and
-/// bill — the same audio twice.
+/// HTTP 429 is eligible under the rate-limit retry policy. No 5xx, including
+/// 503, establishes that an STT upload was not processed; replaying it could
+/// upload and bill the same audio twice.
 fn status_error(context: &str, status: reqwest::StatusCode) -> UploadError {
     let message = match status.as_u16() {
         401 => {
@@ -433,7 +428,7 @@ fn status_error(context: &str, status: reqwest::StatusCode) -> UploadError {
         _ => format!("{context} failed with status {status}"),
     };
 
-    if matches!(status.as_u16(), 429 | 503) {
+    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
         UploadError::retryable(message)
     } else {
         UploadError::fatal(message)
@@ -801,9 +796,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn openrouter_stt_retries_transient_failures_then_succeeds() {
+    async fn openrouter_stt_retries_rate_limit_then_succeeds() {
         let (endpoint, hits) = serve_sequence(vec![
-            ("503 Service Unavailable", r#"{"error":"upstream"}"#),
+            ("429 Too Many Requests", r#"{"error":"rate limited"}"#),
             ("200 OK", r#"{"text":"recovered"}"#),
         ])
         .await;
@@ -820,6 +815,37 @@ mod tests {
 
         assert_eq!(text, "recovered");
         assert_eq!(hits.load(Ordering::SeqCst), 2, "expected one retry");
+    }
+
+    #[tokio::test]
+    async fn openrouter_stt_service_unavailable_is_not_replayed() {
+        // Even with a successful next response available, a 503 cannot tell us
+        // whether the first upload was processed and must be reported as final.
+        let (endpoint, hits) = serve_sequence(vec![
+            (
+                "503 Service Unavailable",
+                r#"{"error":"PRIVATE PROVIDER DETAIL"}"#,
+            ),
+            ("200 OK", r#"{"text":"duplicate"}"#),
+        ])
+        .await;
+
+        let error = transcribe_with_budget(
+            &endpoint,
+            vec![0.1_f32; 800],
+            &settings_with_key("test-key"),
+            Duration::from_secs(3),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.to_string().contains("503"), "got: {error}");
+        assert!(!error.to_string().contains("PRIVATE PROVIDER DETAIL"));
+        assert_eq!(
+            hits.load(Ordering::SeqCst),
+            1,
+            "ambiguous upload was replayed"
+        );
     }
 
     #[tokio::test]
@@ -889,8 +915,8 @@ mod tests {
 
     #[tokio::test]
     async fn openrouter_stt_malformed_success_is_not_retried() {
-        // The provider already transcribed (and billed) this upload, so an
-        // unusable response is surfaced instead of being sent again.
+        // The provider may already have transcribed and billed this upload, so
+        // an unusable response is surfaced instead of being sent again.
         let (endpoint, hits) = serve_sequence(vec![("200 OK", r#"{"choices":[]}"#)]).await;
 
         let settings = settings_with_key("test-key");

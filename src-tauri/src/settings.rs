@@ -879,6 +879,18 @@ fn ensure_post_process_defaults(settings: &mut AppSettings) -> bool {
 
 pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
 
+/// Serialize API-key saves with OpenRouter activation's read/unload/write.
+/// This is not the transcription operation gate: key edits affect the next
+/// request and must remain available during an in-flight transcription.
+/// Other legacy settings writers do not participate in this narrow lock.
+pub(crate) fn lock_api_key_settings() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|poisoned| {
+        warn!("API key settings mutex was poisoned, recovering");
+        poisoned.into_inner()
+    })
+}
+
 pub fn get_default_settings() -> AppSettings {
     #[cfg(target_os = "windows")]
     let default_shortcut = "ctrl+space";

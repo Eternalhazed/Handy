@@ -1,6 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Check, Cloud, KeyRound, RefreshCw } from "lucide-react";
+import type { SelectInstance } from "react-select";
 import { commands, type Result } from "@/bindings";
 import Badge from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -67,12 +74,14 @@ export const OpenRouterTranscriptionCard: React.FC<
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [draftModel, setDraftModel] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const selectRef = useRef<SelectInstance<SelectOption, false>>(null);
   const [keyEditing, setKeyEditing] = useState(false);
   const [activating, setActivating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const savedModel = settings?.openrouter_transcription_model ?? "";
-  const apiKey = settings?.post_process_api_keys?.[OPENROUTER_PROVIDER_ID] ?? "";
+  const apiKey =
+    settings?.post_process_api_keys?.[OPENROUTER_PROVIDER_ID] ?? "";
   const hasKey = apiKey.trim().length > 0;
   const isActive = settings?.transcription_provider === "openrouter";
 
@@ -191,6 +200,7 @@ export const OpenRouterTranscriptionCard: React.FC<
     if (!isActive && canActivate) {
       void activate(selectedModel);
     } else {
+      selectRef.current?.focus();
       setMenuOpen(true);
     }
   };
@@ -269,6 +279,7 @@ export const OpenRouterTranscriptionCard: React.FC<
             stacks a picker, a key field and a metadata row. */}
         <div onClick={stopClick}>
           <Select
+            selectRef={selectRef}
             value={selectedModel || null}
             options={options}
             onChange={handleModelChange}
@@ -283,11 +294,14 @@ export const OpenRouterTranscriptionCard: React.FC<
           />
         </div>
 
-        {!catalogError && !catalogLoading && catalogLoaded && catalog.length === 0 && (
-          <p className="text-xs text-text/40">
-            {t("settings.models.openrouter.noModels")}
-          </p>
-        )}
+        {!catalogError &&
+          !catalogLoading &&
+          catalogLoaded &&
+          catalog.length === 0 && (
+            <p className="text-xs text-text/40">
+              {t("settings.models.openrouter.noModels")}
+            </p>
+          )}
 
         {showKeyField && (
           <div className="flex flex-col gap-1" onClick={stopClick}>
@@ -306,7 +320,7 @@ export const OpenRouterTranscriptionCard: React.FC<
 
         {/* Metadata chips + actions, matching a local card's bottom row. */}
         <div
-          className="flex items-center gap-3 w-full -mb-0.5 mt-0.5 min-h-5"
+          className="flex flex-wrap items-center gap-3 w-full -mb-0.5 mt-0.5 min-h-5"
           onClick={stopClick}
         >
           {hasKey ? (
